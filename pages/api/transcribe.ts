@@ -50,10 +50,18 @@ function parseContactInfo(transcription: string): ContactData {
   }
 
   // Extract email addresses
+  // First try standard @ format
   const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
   const emailMatch = transcription.match(emailRegex);
   if (emailMatch) {
     result.email = emailMatch[0];
+  } else {
+    // Try "at" format (voice transcription often says "at" instead of "@")
+    const voiceEmailRegex = /([a-zA-Z0-9._%+-]+)\s+at\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
+    const voiceEmailMatch = transcription.match(voiceEmailRegex);
+    if (voiceEmailMatch) {
+      result.email = `${voiceEmailMatch[1]}@${voiceEmailMatch[2]}`;
+    }
   }
 
   // Extract names (simple approach - first capitalized words)
@@ -71,10 +79,17 @@ function parseContactInfo(transcription: string): ContactData {
   }
 
   // Extract company mentions
-  const companyRegex = /(?:from|at|with|work for)\s+([A-Z][a-zA-Z\s&.,-]+(?:Inc|LLC|Corp|Company|Co\.|Ltd)?)/i;
+  const companyRegex = /(?:from|at|with|work for|work at)\s+([A-Z][a-zA-Z\s&.,-]+(?:Inc|LLC|Corp|Company|Co\.|Ltd)?)/i;
   const companyMatch = transcription.match(companyRegex);
   if (companyMatch) {
     result.company = companyMatch[1].trim();
+  } else {
+    // Try simple "ABC Company" pattern
+    const simpleCompanyRegex = /([A-Z][A-Z]+\s+Company)/;
+    const simpleCompanyMatch = transcription.match(simpleCompanyRegex);
+    if (simpleCompanyMatch) {
+      result.company = simpleCompanyMatch[1];
+    }
   }
 
   return result;
