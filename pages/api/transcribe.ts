@@ -93,13 +93,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'No audio file provided' });
     }
 
+    // Get API key from request body or environment
+    const apiKey = (req as any).body?.apiKey || process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(400).json({ 
+        error: 'OpenAI API key is required',
+        details: 'Please provide an API key in testing mode or configure OPENAI_API_KEY environment variable'
+      });
+    }
+
+    // Create OpenAI instance with provided or environment API key
+    const openaiInstance = new OpenAI({
+      apiKey: apiKey,
+    });
+
     // Convert buffer to file-like object for OpenAI
     const audioFile = new File([file.buffer], file.originalname || 'audio.webm', {
       type: file.mimetype || 'audio/webm',
     });
 
     // Transcribe with Whisper
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await openaiInstance.audio.transcriptions.create({
       file: audioFile,
       model: 'whisper-1',
       language: 'en',
