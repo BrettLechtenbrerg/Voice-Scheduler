@@ -22,6 +22,8 @@ export default function Home() {
   const [contactData, setContactData] = useState<ContactData | null>(null);
   const [submissionResult, setSubmissionResult] = useState<string>('');
   const [error, setError] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [showApiInput, setShowApiInput] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -64,6 +66,11 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
+      
+      // Add API key if provided
+      if (apiKey) {
+        formData.append('apiKey', apiKey);
+      }
 
       const response = await fetch('/api/transcribe', {
         method: 'POST',
@@ -158,6 +165,76 @@ export default function Home() {
           }}>
             Speak your contact information to automatically create leads and send calendar links
           </p>
+
+          {/* API Key Testing Section */}
+          <div style={{
+            marginBottom: '2rem',
+            padding: '1.5rem',
+            backgroundColor: '#fff3cd',
+            borderRadius: '8px',
+            border: '1px solid #ffeaa7'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h4 style={{ margin: 0, color: '#856404' }}>🧪 Testing Mode</h4>
+              <button
+                onClick={() => setShowApiInput(!showApiInput)}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid #856404',
+                  color: '#856404',
+                  borderRadius: '4px',
+                  padding: '0.25rem 0.75rem',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem'
+                }}
+              >
+                {showApiInput ? 'Hide' : 'Add API Key'}
+              </button>
+            </div>
+            
+            {showApiInput && (
+              <div style={{ marginTop: '1rem' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '0.5rem', 
+                  fontSize: '0.9rem',
+                  color: '#856404'
+                }}>
+                  OpenAI API Key (temporary for testing):
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-proj-..."
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '0.9rem',
+                    marginBottom: '0.5rem'
+                  }}
+                />
+                <p style={{ 
+                  fontSize: '0.8rem', 
+                  color: '#6c757d', 
+                  margin: 0,
+                  fontStyle: 'italic'
+                }}>
+                  ⚠️ This is for testing only. In production, API keys should be stored securely on the server.
+                </p>
+              </div>
+            )}
+            
+            <p style={{ 
+              fontSize: '0.9rem', 
+              color: '#856404', 
+              margin: showApiInput ? '0.5rem 0 0 0' : 0
+            }}>
+              {apiKey ? '✅ API key entered - voice transcription enabled' : '❌ No API key - transcription will fail'}
+            </p>
+          </div>
 
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
             {!isRecording && !isProcessing && (
