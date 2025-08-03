@@ -1,0 +1,24 @@
+{
+  "name": "voice-scheduler",
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "OPENAI_API_KEY": "@openai-api-key",
+    "GHL_WEBHOOK_URL": "@ghl-webhook-url",
+    "GHL_API_KEY": "@ghl-api-key",
+    "GHL_LOCATION_ID": "@ghl-location-id"
+  },
+  "functions": {
+    "pages/api/transcribe.ts": {
+      "maxDuration": 30
+    },
+    "pages/api/submit-contact.ts": {
+      "maxDuration": 10
+    }
+  }
+}
