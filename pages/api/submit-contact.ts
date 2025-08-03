@@ -43,84 +43,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     // Submit to Go High Level
-    // Note: Replace with your actual GHL webhook URL or form endpoint
-    const ghlWebhookUrl = process.env.GHL_WEBHOOK_URL || process.env.GHL_FORM_URL;
+    const ghlFormUrl = process.env.GHL_FORM_URL || 'https://api.leadconnectorhq.com/widget/form/fLVbcMPIRtUrfEIPkyGF';
     
-    if (!ghlWebhookUrl) {
-      console.warn('GHL webhook URL not configured, skipping submission');
-      return res.status(200).json({
-        success: true,
-        message: 'Contact data processed (GHL webhook not configured)',
-        contactData: ghlData
-      });
-    }
+    console.log('Submitting to GHL form:', ghlFormUrl);
 
-    // Method 1: Direct webhook submission
-    if (process.env.GHL_WEBHOOK_URL) {
-      const webhookResponse = await axios.post(ghlWebhookUrl, ghlData, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Contact submitted to GHL webhook',
-        ghlResponse: webhookResponse.status,
-        contactData: ghlData
-      });
-    }
-
-    // Method 2: GHL API submission (if using API instead of webhook)
-    if (process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID) {
-      const apiResponse = await axios.post(
-        `https://services.leadconnectorhq.com/contacts/`,
-        {
-          firstName: contactData.name.split(' ')[0],
-          lastName: contactData.name.split(' ').slice(1).join(' '),
-          phone: contactData.phone,
-          email: contactData.email,
-          companyName: contactData.company,
-          source: 'Voice Scheduler',
-          tags: ['voice-lead'],
-          customFields: [
-            {
-              key: 'notes',
-              field_value: contactData.notes || 'Voice-captured lead'
-            }
-          ]
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
-            'Version': '2021-07-28',
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        }
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: 'Contact created in GHL via API',
-        contactId: apiResponse.data.contact?.id,
-        contactData: ghlData
-      });
-    }
-
-    // Method 3: Form submission (if using a specific form)
-    const formResponse = await axios.post(ghlWebhookUrl, ghlData, {
+    // Submit to GHL Form
+    const formResponse = await axios.post(ghlFormUrl, ghlData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
-      timeout: 10000,
+      timeout: 15000,
     });
+
+    console.log('GHL Form response:', formResponse.status, formResponse.data);
 
     return res.status(200).json({
       success: true,
-      message: 'Contact submitted to GHL form',
+      message: 'Contact submitted to Go High Level successfully!',
       ghlResponse: formResponse.status,
+      ghlData: formResponse.data,
       contactData: ghlData
     });
 
