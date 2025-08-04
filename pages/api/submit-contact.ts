@@ -41,23 +41,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     console.log('Submitting to GHL webhook:', ghlWebhookUrl);
     
-    // Prepare webhook data in the format expected by GHL inbound webhooks
+    // Prepare webhook data with explicit field mapping for GHL
     const webhookData = {
-      // Contact information
+      // Primary contact fields with GHL standard naming
+      contact: {
+        firstName: contactData.name.split(' ')[0] || contactData.name,
+        lastName: contactData.name.split(' ').slice(1).join(' ') || '',
+        name: contactData.name,
+        email: contactData.email || '',
+        phone: contactData.phone,
+        companyName: contactData.company || '',
+        source: 'voice_scheduler',
+        customFields: {
+          notes: contactData.notes || '',
+          transcription: contactData.notes || '',
+          created_via: 'Voice Scheduler App'
+        }
+      },
+      
+      // Alternative flat structure (GHL sometimes prefers this)
+      firstName: contactData.name.split(' ')[0] || contactData.name,
+      lastName: contactData.name.split(' ').slice(1).join(' ') || '',
       name: contactData.name,
-      first_name: contactData.name.split(' ')[0] || contactData.name,
-      last_name: contactData.name.split(' ').slice(1).join(' ') || '',
-      phone: contactData.phone,
       email: contactData.email || '',
+      phone: contactData.phone,
+      companyName: contactData.company || '',
       company: contactData.company || '',
       
-      // Additional context for automation triggers
+      // Workflow trigger context
+      trigger: 'voice_scheduler_webhook',
       source: 'voice_scheduler',
-      notes: contactData.notes || '',
+      type: 'contact_creation',
       
-      // Timestamp for tracking
-      created_at: new Date().toISOString(),
-      timestamp: Math.floor(Date.now() / 1000)
+      // Notes and additional data
+      notes: contactData.notes || '',
+      message: contactData.notes || '',
+      transcription: contactData.notes || '',
+      
+      // Timestamps
+      createdAt: new Date().toISOString(),
+      timestamp: Math.floor(Date.now() / 1000),
+      
+      // Metadata for mapping reference
+      webhookType: 'contact_submission',
+      version: '1.0'
     };
     
     console.log('Submitting webhook data:', webhookData);
