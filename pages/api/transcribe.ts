@@ -103,9 +103,9 @@ function parseContactInfo(transcription: string): ContactData {
     }
   }
   
-  // Pattern 3: Simple "ABC Company" pattern
+  // Pattern 3: Simple "ABC Company" pattern - more precise
   if (!companyFound) {
-    const simpleCompanyRegex = /([A-Z][a-zA-Z\s]+(?:Company|Solutions|Business|Inc|LLC|Corp))/;
+    const simpleCompanyRegex = /(?:^|\s)([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:Solutions|Business|Services|Company|Inc|LLC|Corp))(?:\s|$|,)/;
     const simpleCompanyMatch = transcription.match(simpleCompanyRegex);
     if (simpleCompanyMatch) {
       result.company = simpleCompanyMatch[1].trim();
