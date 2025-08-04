@@ -1,23 +1,39 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import OpenAI from 'openai';
-import formidable from 'formidable';
+const express = require('express');
+const multer = require('multer');
+const OpenAI = require('openai');
+const { promisify } = require('util');
 
-export const config = {
-  api: {
-    bodyParser: false,
+const app = express();
+const PORT = 8080;
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-};
+});
 
-interface ContactData {
-  name: string;
-  phone: string;
-  email: string;
-  company?: string;
-  notes?: string;
-}
+const uploadMiddleware = promisify(upload.fields([
+  { name: 'audio', maxCount: 1 },
+  { name: 'apiKey', maxCount: 1 }
+]));
 
-function parseContactInfo(transcription: string): ContactData {
-  const result: ContactData = {
+// CORS middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Contact parsing function
+function parseContactInfo(transcription) {
+  const result = {
     name: '',
     phone: '',
     email: '',
@@ -36,21 +52,20 @@ function parseContactInfo(transcription: string): ContactData {
   }
 
   // Extract email addresses
-  // First try standard @ format
-  const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+  const emailRegex = /([a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
   const emailMatch = transcription.match(emailRegex);
   if (emailMatch) {
     result.email = emailMatch[0];
   } else {
-    // Try "at" format (voice transcription often says "at" instead of "@")
-    const voiceEmailRegex = /([a-zA-Z0-9._%+-]+)\s+at\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
+    // Try "at" format
+    const voiceEmailRegex = /([a-zA-Z0-9._%-]+)\s+at\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
     const voiceEmailMatch = transcription.match(voiceEmailRegex);
     if (voiceEmailMatch) {
       result.email = `${voiceEmailMatch[1]}@${voiceEmailMatch[2]}`;
     }
   }
 
-  // Extract names - handle multiple patterns
+  // Extract names
   let nameFound = false;
   
   // Pattern 1: "First name [Name], last name [Name]"
@@ -82,10 +97,9 @@ function parseContactInfo(transcription: string): ContactData {
     }
   }
 
-  // Extract company mentions - multiple patterns
+  // Extract company mentions
   let companyFound = false;
   
-  // Pattern 1: "company name [Company]"
   const companyNameRegex = /company name[,\s]+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:please|phone|email|$))/i;
   const companyNameMatch = transcription.match(companyNameRegex);
   if (companyNameMatch) {
@@ -93,7 +107,6 @@ function parseContactInfo(transcription: string): ContactData {
     companyFound = true;
   }
   
-  // Pattern 2: Standard company patterns
   if (!companyFound) {
     const companyRegex = /(?:from|at|with|work for|work at)\s+([A-Z][a-zA-Z\s&.,-]+(?:Inc|LLC|Corp|Company|Co\.|Ltd)?)/i;
     const companyMatch = transcription.match(companyRegex);
@@ -103,7 +116,6 @@ function parseContactInfo(transcription: string): ContactData {
     }
   }
   
-  // Pattern 3: Simple "ABC Company" pattern
   if (!companyFound) {
     const simpleCompanyRegex = /([A-Z][a-zA-Z\s]+(?:Company|Solutions|Business|Inc|LLC|Corp))/;
     const simpleCompanyMatch = transcription.match(simpleCompanyRegex);
@@ -115,36 +127,20 @@ function parseContactInfo(transcription: string): ContactData {
   return result;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Add CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+// Transcribe endpoint
+app.post('/api/transcribe', async (req, res) => {
   try {
-    const form = formidable({
-      maxFileSize: 10 * 1024 * 1024, // 10MB limit
-      keepExtensions: true,
-    });
-
-    const [fields, files] = await form.parse(req);
+    await uploadMiddleware(req, res);
     
-    const audioFile = Array.isArray(files.audio) ? files.audio[0] : files.audio;
+    const files = req.files;
+    const audioFile = files?.audio?.[0];
     if (!audioFile) {
       return res.status(400).json({ error: 'No audio file provided' });
     }
 
-    // Get API key from form fields or environment
-    const apiKeyField = Array.isArray(fields.apiKey) ? fields.apiKey[0] : fields.apiKey;
-    const apiKey = apiKeyField || process.env.OPENAI_API_KEY;
+    // Get API key from form fields
+    const apiKeyField = files?.apiKey?.[0];
+    const apiKey = apiKeyField ? apiKeyField.buffer.toString('utf8') : process.env.OPENAI_API_KEY;
     
     if (!apiKey) {
       return res.status(400).json({ 
@@ -153,14 +149,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Create OpenAI instance with provided or environment API key
-    const openaiInstance = new OpenAI({
+    // Create OpenAI instance
+    const openai = new OpenAI({
       apiKey: apiKey,
     });
 
-    // Use the file path for OpenAI
-    const transcription = await openaiInstance.audio.transcriptions.create({
-      file: require('fs').createReadStream(audioFile.filepath),
+    // Convert buffer to file-like object for OpenAI
+    const audioFileForAPI = new File([audioFile.buffer], audioFile.originalname || 'audio.webm', {
+      type: audioFile.mimetype || 'audio/webm',
+    });
+
+    // Transcribe with Whisper
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioFileForAPI,
       model: 'whisper-1',
       language: 'en',
     });
@@ -181,4 +182,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
-}
+});
+
+app.listen(PORT, () => {
+  console.log(`Proxy server running on http://localhost:${PORT}`);
+  console.log('CORS enabled for cross-origin requests');
+});
