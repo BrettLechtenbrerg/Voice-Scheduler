@@ -64,13 +64,31 @@ function parseContactInfo(transcription: string): ContactData {
     }
   }
 
-  // Extract names (simple approach - first capitalized words)
-  const nameRegex = /(?:name is|I'm|my name is|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i;
-  const nameMatch = transcription.match(nameRegex);
-  if (nameMatch) {
-    result.name = nameMatch[1];
-  } else {
-    // Fallback: look for capitalized words at the beginning
+  // Extract names - handle multiple patterns
+  let nameFound = false;
+  
+  // Pattern 1: "First name [Name], last name [Name]"
+  const firstLastRegex = /(?:first name|first)\s+([A-Z][a-z]+)(?:.*?(?:last name|last)\s+([A-Z][a-z]+))?/i;
+  const firstLastMatch = transcription.match(firstLastRegex);
+  if (firstLastMatch) {
+    const firstName = firstLastMatch[1];
+    const lastName = firstLastMatch[2] || '';
+    result.name = lastName ? `${firstName} ${lastName}` : firstName;
+    nameFound = true;
+  }
+  
+  // Pattern 2: "My name is [Name]" or "This is [Name]"
+  if (!nameFound) {
+    const nameRegex = /(?:name is|I'm|my name is|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i;
+    const nameMatch = transcription.match(nameRegex);
+    if (nameMatch) {
+      result.name = nameMatch[1];
+      nameFound = true;
+    }
+  }
+  
+  // Pattern 3: Fallback - first capitalized words
+  if (!nameFound) {
     const firstWordsRegex = /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/;
     const firstWordsMatch = transcription.match(firstWordsRegex);
     if (firstWordsMatch) {
@@ -78,17 +96,33 @@ function parseContactInfo(transcription: string): ContactData {
     }
   }
 
-  // Extract company mentions
-  const companyRegex = /(?:from|at|with|work for|work at)\s+([A-Z][a-zA-Z\s&.,-]+(?:Inc|LLC|Corp|Company|Co\.|Ltd)?)/i;
-  const companyMatch = transcription.match(companyRegex);
-  if (companyMatch) {
-    result.company = companyMatch[1].trim();
-  } else {
-    // Try simple "ABC Company" pattern
-    const simpleCompanyRegex = /([A-Z][A-Z]+\s+Company)/;
+  // Extract company mentions - multiple patterns
+  let companyFound = false;
+  
+  // Pattern 1: "company name [Company]"
+  const companyNameRegex = /company name[,\s]+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:please|phone|email|$))/i;
+  const companyNameMatch = transcription.match(companyNameRegex);
+  if (companyNameMatch) {
+    result.company = companyNameMatch[1].trim();
+    companyFound = true;
+  }
+  
+  // Pattern 2: Standard company patterns
+  if (!companyFound) {
+    const companyRegex = /(?:from|at|with|work for|work at)\s+([A-Z][a-zA-Z\s&.,-]+(?:Inc|LLC|Corp|Company|Co\.|Ltd)?)/i;
+    const companyMatch = transcription.match(companyRegex);
+    if (companyMatch) {
+      result.company = companyMatch[1].trim();
+      companyFound = true;
+    }
+  }
+  
+  // Pattern 3: Simple "ABC Company" pattern
+  if (!companyFound) {
+    const simpleCompanyRegex = /([A-Z][a-zA-Z\s]+(?:Company|Solutions|Business|Inc|LLC|Corp))/;
     const simpleCompanyMatch = transcription.match(simpleCompanyRegex);
     if (simpleCompanyMatch) {
-      result.company = simpleCompanyMatch[1];
+      result.company = simpleCompanyMatch[1].trim();
     }
   }
 
