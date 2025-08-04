@@ -33,30 +33,94 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Prepare GHL form data
-    const ghlData: GHLFormSubmission = {
-      name: contactData.name,
-      phone: contactData.phone,
-      email: contactData.email || '',
-      company: contactData.company || '',
-      message: contactData.notes || 'Voice-captured lead from Voice Scheduler'
-    };
-
     // Submit to Go High Level
     const ghlFormUrl = process.env.GHL_FORM_URL || 'https://api.leadconnectorhq.com/widget/form/fLVbcMPIRtUrfEIPkyGF';
     
     console.log('Submitting to GHL form:', ghlFormUrl);
-
-    // Submit to GHL Form
-    const formResponse = await axios.post(ghlFormUrl, ghlData, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+    
+    // Try different field formats that GHL forms commonly use
+    const ghlDataVariations = [
+      // Format 1: Standard fields
+      {
+        name: contactData.name,
+        phone: contactData.phone,
+        email: contactData.email || '',
+        company: contactData.company || '',
+        message: contactData.notes || 'Voice-captured lead from Voice Scheduler'
       },
-      timeout: 15000,
-    });
+      // Format 2: First/Last name split
+      {
+        first_name: contactData.name.split(' ')[0] || contactData.name,
+        last_name: contactData.name.split(' ').slice(1).join(' ') || '',
+        phone: contactData.phone,
+        email: contactData.email || '',
+        company: contactData.company || '',
+        message: contactData.notes || 'Voice-captured lead from Voice Scheduler'
+      },
+      // Format 3: Full name field
+      {
+        full_name: contactData.name,
+        phone: contactData.phone,
+        email: contactData.email || '',
+        company: contactData.company || '',
+        notes: contactData.notes || 'Voice-captured lead from Voice Scheduler'
+      }
+    ];
 
-    console.log('GHL Form response:', formResponse.status, formResponse.data);
+    let formResponse;
+    let lastError;
+
+    // Try each format with both JSON and form-encoded
+    for (let i = 0; i < ghlDataVariations.length; i++) {
+      // Try JSON first
+      try {
+        console.log(`Trying GHL format ${i + 1} (JSON):`, ghlDataVariations[i]);
+        
+        formResponse = await axios.post(ghlFormUrl, ghlDataVariations[i], {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          timeout: 15000,
+        });
+
+        console.log('GHL Form response (JSON):', formResponse.status, formResponse.data);
+        break; // Success, exit loop
+        
+      } catch (jsonError) {
+        console.log(`Format ${i + 1} JSON failed:`, jsonError.response?.status, jsonError.response?.data);
+        
+        // Try form-encoded as fallback
+        try {
+          console.log(`Trying GHL format ${i + 1} (form-encoded):`, ghlDataVariations[i]);
+          
+          const formData = new URLSearchParams();
+          Object.entries(ghlDataVariations[i]).forEach(([key, value]) => {
+            formData.append(key, String(value));
+          });
+          
+          formResponse = await axios.post(ghlFormUrl, formData, {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json',
+            },
+            timeout: 15000,
+          });
+
+          console.log('GHL Form response (form):', formResponse.status, formResponse.data);
+          break; // Success, exit loop
+          
+        } catch (formError) {
+          console.log(`Format ${i + 1} form failed:`, formError.response?.status, formError.response?.data);
+          lastError = formError;
+          
+          // If this was the last format, throw the error
+          if (i === ghlDataVariations.length - 1) {
+            throw formError;
+          }
+        }
+      }
+    }
 
     return res.status(200).json({
       success: true,
