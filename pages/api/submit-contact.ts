@@ -41,90 +41,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     console.log('Submitting to GHL form:', ghlFormUrl);
     
-    // Try different field formats that GHL forms commonly use
-    const ghlDataVariations = [
-      // Format 1: Standard fields
-      {
-        name: contactData.name,
-        phone: contactData.phone,
-        email: contactData.email || '',
-        company: contactData.company || '',
-        message: contactData.notes || 'Voice-captured lead from Voice Scheduler'
-      },
-      // Format 2: First/Last name split
-      {
-        first_name: contactData.name.split(' ')[0] || contactData.name,
-        last_name: contactData.name.split(' ').slice(1).join(' ') || '',
-        phone: contactData.phone,
-        email: contactData.email || '',
-        company: contactData.company || '',
-        message: contactData.notes || 'Voice-captured lead from Voice Scheduler'
-      },
-      // Format 3: Full name field
-      {
-        full_name: contactData.name,
-        phone: contactData.phone,
-        email: contactData.email || '',
-        company: contactData.company || '',
-        notes: contactData.notes || 'Voice-captured lead from Voice Scheduler'
-      }
-    ];
+    // GHL Voice Scheduler form expects these exact field names:
+    // first_name, last_name, phone, email, full_name (for company)
+    const ghlData = {
+      first_name: contactData.name.split(' ')[0] || contactData.name,
+      last_name: contactData.name.split(' ').slice(1).join(' ') || '',
+      phone: contactData.phone,
+      email: contactData.email || '',
+      full_name: contactData.company || '', // This field is actually "Company Name" in the form
+    };
+    
+    console.log('Submitting exact GHL form data:', ghlData);
 
     let formResponse;
-    let lastError;
+    
+    // Try form-encoded submission (most common for GHL forms)
+    try {
+      const formDataString = Object.entries(ghlData)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+        .join('&');
+      
+      console.log('Form data string:', formDataString);
+      
+      formResponse = await axios.post(ghlFormUrl, formDataString, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        timeout: 15000,
+      });
 
-    // Try each format with both JSON and form-encoded
-    for (let i = 0; i < ghlDataVariations.length; i++) {
-      // Try JSON first
-      try {
-        console.log(`Trying GHL format ${i + 1} (JSON):`, ghlDataVariations[i]);
-        
-        formResponse = await axios.post(ghlFormUrl, ghlDataVariations[i], {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          timeout: 15000,
-        });
+      console.log('GHL Form response:', formResponse.status, formResponse.data);
+      
+    } catch (formError) {
+      console.log('Form submission failed, trying JSON format');
+      
+      // Fallback to JSON
+      formResponse = await axios.post(ghlFormUrl, ghlData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        timeout: 15000,
+      });
 
-        console.log('GHL Form response (JSON):', formResponse.status, formResponse.data);
-        break; // Success, exit loop
-        
-      } catch (jsonError) {
-        console.log(`Format ${i + 1} JSON failed:`, jsonError.response?.status, jsonError.response?.data);
-        
-        // Try form-encoded as fallback
-        try {
-          console.log(`Trying GHL format ${i + 1} (form-encoded):`, ghlDataVariations[i]);
-          
-          // Create form-encoded string manually
-          const formDataString = Object.entries(ghlDataVariations[i])
-            .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-            .join('&');
-          
-          console.log('Form data string:', formDataString);
-          
-          formResponse = await axios.post(ghlFormUrl, formDataString, {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Accept': 'application/json',
-            },
-            timeout: 15000,
-          });
-
-          console.log('GHL Form response (form):', formResponse.status, formResponse.data);
-          break; // Success, exit loop
-          
-        } catch (formError) {
-          console.log(`Format ${i + 1} form failed:`, formError.response?.status, formError.response?.data);
-          lastError = formError;
-          
-          // If this was the last format, throw the error
-          if (i === ghlDataVariations.length - 1) {
-            throw formError;
-          }
-        }
-      }
+      console.log('GHL JSON response:', formResponse.status, formResponse.data);
     }
 
     return res.status(200).json({
@@ -132,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Contact submitted to Go High Level successfully!',
       ghlResponse: formResponse.status,
       ghlData: formResponse.data,
-      contactData: ghlData
+      contactData: contactData
     });
 
   } catch (error) {
