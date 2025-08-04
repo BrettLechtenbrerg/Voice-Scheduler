@@ -36,116 +36,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Submit to Go High Level
-    const ghlFormUrl = process.env.GHL_FORM_URL || 'https://api.leadconnectorhq.com/widget/form/fLVbcMPIRtUrfEIPkyGF';
+    // Submit to Go High Level inbound webhook
+    const ghlWebhookUrl = process.env.GHL_WEBHOOK_URL || 'https://services.leadconnectorhq.com/hooks/boPxhNvcNB6T3F2CLP0M/webhook-trigger/2a1d5581-45b9-4b3d-8e70-5ad305d52b02';
     
-    console.log('Submitting to GHL form:', ghlFormUrl);
+    console.log('Submitting to GHL webhook:', ghlWebhookUrl);
     
-    // Try to make the submission as close to a real browser form as possible
-    const ghlData = {
-      // Core form fields (matching the actual form structure)
+    // Prepare webhook data in the format expected by GHL inbound webhooks
+    const webhookData = {
+      // Contact information
+      name: contactData.name,
       first_name: contactData.name.split(' ')[0] || contactData.name,
       last_name: contactData.name.split(' ').slice(1).join(' ') || '',
       phone: contactData.phone,
       email: contactData.email || '',
-      company_name: contactData.company || '',
+      company: contactData.company || '',
       
-      // Form identification and submission context
-      'form-id': 'fLVbcMPIRtUrfEIPkyGF',
-      'location-id': process.env.GHL_LOCATION_ID || 'boPxhNvcNB6T3F2CLP0M',
-      
-      // Add common form fields that might be required for workflow triggers
-      source: 'form_submission',
-      medium: 'widget',
-      campaign: 'voice_scheduler',
-      
-      // Browser context that might be needed
-      page_title: 'Voice Scheduler',
-      page_url: 'https://voice-scheduler.vercel.app',
-      referrer: '',
+      // Additional context for automation triggers
+      source: 'voice_scheduler',
+      notes: contactData.notes || '',
       
       // Timestamp for tracking
+      created_at: new Date().toISOString(),
       timestamp: Math.floor(Date.now() / 1000)
     };
     
-    console.log('Submitting exact GHL form data:', ghlData);
+    console.log('Submitting webhook data:', webhookData);
 
-    let formResponse;
-    
-    // Try form-encoded submission (most common for GHL forms)
-    try {
-      const formDataString = Object.entries(ghlData)
-        .map(([key, value]) => {
-          if (Array.isArray(value)) {
-            // Handle arrays (like multiple checkboxes)
-            return value.map(v => `${encodeURIComponent(key)}=${encodeURIComponent(String(v))}`).join('&');
-          }
-          return `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`;
-        })
-        .join('&');
-      
-      console.log('Form data string:', formDataString);
-      
-      formResponse = await axios.post(ghlFormUrl, formDataString, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Origin': 'https://voice-scheduler.vercel.app',
-          'Referer': 'https://voice-scheduler.vercel.app/',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'cross-site',
-          'Sec-Fetch-User': '?1',
-          'Cache-Control': 'max-age=0'
-        },
-        timeout: 15000,
-        maxRedirects: 0, // Don't follow redirects - we want to see the redirect response
-        validateStatus: function (status) {
-          return status >= 200 && status < 400; // Accept redirects as success
-        }
-      });
+    // Submit to GHL inbound webhook (webhooks typically expect JSON)
+    const webhookResponse = await axios.post(ghlWebhookUrl, webhookData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Voice-Scheduler/1.0'
+      },
+      timeout: 15000,
+      validateStatus: function (status) {
+        return status >= 200 && status < 400;
+      }
+    });
 
-      console.log('GHL Form response:', formResponse.status, formResponse.data);
-      console.log('GHL Response headers:', formResponse.headers);
-      console.log('GHL Response config:', {
-        url: formResponse.config?.url,
-        method: formResponse.config?.method,
-        headers: formResponse.config?.headers
-      });
-      
-    } catch (formError) {
-      console.log('Form submission failed, trying JSON format');
-      
-      // Fallback to JSON
-      formResponse = await axios.post(ghlFormUrl, ghlData, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        timeout: 15000,
-      });
-
-      console.log('GHL JSON response:', formResponse.status, formResponse.data);
-      console.log('GHL JSON Response headers:', formResponse.headers);
-    }
+    console.log('GHL Webhook response:', webhookResponse.status, webhookResponse.data);
+    console.log('GHL Webhook Response headers:', webhookResponse.headers);
 
     // Detailed analysis of the response
     const responseAnalysis = {
-      status: formResponse.status,
-      statusText: formResponse.statusText,
-      headers: formResponse.headers,
-      data: formResponse.data,
-      dataType: typeof formResponse.data,
-      dataString: JSON.stringify(formResponse.data),
-      url: formResponse.config?.url
+      status: webhookResponse.status,
+      statusText: webhookResponse.statusText,
+      headers: webhookResponse.headers,
+      data: webhookResponse.data,
+      dataType: typeof webhookResponse.data,
+      dataString: JSON.stringify(webhookResponse.data),
+      url: webhookResponse.config?.url
     };
     
-    console.log('=== DETAILED GHL RESPONSE ANALYSIS ===');
+    console.log('=== DETAILED GHL WEBHOOK RESPONSE ANALYSIS ===');
     console.log('Status:', responseAnalysis.status, responseAnalysis.statusText);
     console.log('Response Headers:', responseAnalysis.headers);
     console.log('Response Data:', responseAnalysis.data);
@@ -156,9 +100,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       success: true,
-      message: 'Contact submitted to Go High Level successfully!',
-      ghlResponse: formResponse.status,
-      ghlData: formResponse.data,
+      message: 'Contact submitted to Go High Level webhook successfully!',
+      ghlResponse: webhookResponse.status,
+      ghlData: webhookResponse.data,
       contactData: contactData,
       responseAnalysis: responseAnalysis
     });
