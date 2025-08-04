@@ -1,10 +1,4 @@
 {
-  "env": {
-    "OPENAI_API_KEY": "@openai-api-key",
-    "GHL_WEBHOOK_URL": "@ghl-webhook-url",
-    "GHL_API_KEY": "@ghl-api-key",
-    "GHL_LOCATION_ID": "@ghl-location-id"
-  },
   "functions": {
     "pages/api/transcribe.ts": {
       "maxDuration": 30
