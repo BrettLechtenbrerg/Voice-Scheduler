@@ -24,12 +24,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const contactData: ContactSubmission = req.body;
+    
+    console.log('Received contact data:', contactData);
 
     // Validate required fields
     if (!contactData.name || !contactData.phone) {
       return res.status(400).json({ 
         error: 'Missing required fields',
-        required: ['name', 'phone']
+        required: ['name', 'phone'],
+        received: contactData
       });
     }
 
@@ -94,12 +97,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
           console.log(`Trying GHL format ${i + 1} (form-encoded):`, ghlDataVariations[i]);
           
-          const formData = new URLSearchParams();
-          Object.entries(ghlDataVariations[i]).forEach(([key, value]) => {
-            formData.append(key, String(value));
-          });
+          // Create form-encoded string manually
+          const formDataString = Object.entries(ghlDataVariations[i])
+            .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+            .join('&');
           
-          formResponse = await axios.post(ghlFormUrl, formData, {
+          console.log('Form data string:', formDataString);
+          
+          formResponse = await axios.post(ghlFormUrl, formDataString, {
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
               'Accept': 'application/json',
@@ -132,18 +137,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error) {
     console.error('GHL submission error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     
     if (axios.isAxiosError(error)) {
+      console.error('Axios error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        headers: error.response?.headers
+      });
+      
       return res.status(500).json({
         error: 'Failed to submit to Go High Level',
         details: error.response?.data || error.message,
-        status: error.response?.status
+        status: error.response?.status,
+        url: error.config?.url
       });
     }
 
     return res.status(500).json({
       error: 'Failed to process contact submission',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined
     });
   }
 }
