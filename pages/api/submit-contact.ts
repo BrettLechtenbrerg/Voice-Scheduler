@@ -41,14 +41,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     console.log('Submitting to GHL form:', ghlFormUrl);
     
-    // GHL Voice Scheduler form expects these exact field names:
-    // first_name, last_name, phone, email, full_name (for company)
+    // Try to make the submission as close to a real browser form as possible
     const ghlData = {
+      // Core form fields (matching the actual form structure)
       first_name: contactData.name.split(' ')[0] || contactData.name,
       last_name: contactData.name.split(' ').slice(1).join(' ') || '',
       phone: contactData.phone,
       email: contactData.email || '',
-      full_name: contactData.company || '', // This field is actually "Company Name" in the form
+      company_name: contactData.company || '',
+      
+      // Form identification and submission context
+      'form-id': 'fLVbcMPIRtUrfEIPkyGF',
+      'location-id': process.env.GHL_LOCATION_ID || 'boPxhNvcNB6T3F2CLP0M',
+      
+      // Add common form fields that might be required for workflow triggers
+      source: 'form_submission',
+      medium: 'widget',
+      campaign: 'voice_scheduler',
+      
+      // Browser context that might be needed
+      page_title: 'Voice Scheduler',
+      page_url: 'https://voice-scheduler.vercel.app',
+      referrer: '',
+      
+      // Timestamp for tracking
+      timestamp: Math.floor(Date.now() / 1000)
     };
     
     console.log('Submitting exact GHL form data:', ghlData);
@@ -58,7 +75,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Try form-encoded submission (most common for GHL forms)
     try {
       const formDataString = Object.entries(ghlData)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+        .map(([key, value]) => {
+          if (Array.isArray(value)) {
+            // Handle arrays (like multiple checkboxes)
+            return value.map(v => `${encodeURIComponent(key)}=${encodeURIComponent(String(v))}`).join('&');
+          }
+          return `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`;
+        })
         .join('&');
       
       console.log('Form data string:', formDataString);
@@ -66,12 +89,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       formResponse = await axios.post(ghlFormUrl, formDataString, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Origin': 'https://voice-scheduler.vercel.app',
+          'Referer': 'https://voice-scheduler.vercel.app/',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'cross-site',
+          'Sec-Fetch-User': '?1',
+          'Cache-Control': 'max-age=0'
         },
         timeout: 15000,
+        maxRedirects: 0, // Don't follow redirects - we want to see the redirect response
+        validateStatus: function (status) {
+          return status >= 200 && status < 400; // Accept redirects as success
+        }
       });
 
       console.log('GHL Form response:', formResponse.status, formResponse.data);
+      console.log('GHL Response headers:', formResponse.headers);
+      console.log('GHL Response config:', {
+        url: formResponse.config?.url,
+        method: formResponse.config?.method,
+        headers: formResponse.config?.headers
+      });
       
     } catch (formError) {
       console.log('Form submission failed, trying JSON format');
@@ -86,14 +131,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       console.log('GHL JSON response:', formResponse.status, formResponse.data);
+      console.log('GHL JSON Response headers:', formResponse.headers);
     }
+
+    // Detailed analysis of the response
+    const responseAnalysis = {
+      status: formResponse.status,
+      statusText: formResponse.statusText,
+      headers: formResponse.headers,
+      data: formResponse.data,
+      dataType: typeof formResponse.data,
+      dataString: JSON.stringify(formResponse.data),
+      url: formResponse.config?.url
+    };
+    
+    console.log('=== DETAILED GHL RESPONSE ANALYSIS ===');
+    console.log('Status:', responseAnalysis.status, responseAnalysis.statusText);
+    console.log('Response Headers:', responseAnalysis.headers);
+    console.log('Response Data:', responseAnalysis.data);
+    console.log('Response Data Type:', responseAnalysis.dataType);
+    console.log('Response Data as String:', responseAnalysis.dataString);
+    console.log('Final URL:', responseAnalysis.url);
+    console.log('=== END ANALYSIS ===');
 
     return res.status(200).json({
       success: true,
       message: 'Contact submitted to Go High Level successfully!',
       ghlResponse: formResponse.status,
       ghlData: formResponse.data,
-      contactData: contactData
+      contactData: contactData,
+      responseAnalysis: responseAnalysis
     });
 
   } catch (error) {
