@@ -109,6 +109,12 @@ export default function Home() {
 
       const result = await response.json();
       
+      // Log detailed response for debugging
+      console.log('=== CLIENT-SIDE GHL RESPONSE DEBUG ===');
+      console.log('Full result:', result);
+      console.log('GHL Response Analysis:', result.responseAnalysis);
+      console.log('=== END CLIENT DEBUG ===');
+      
       if (result.success) {
         setSubmissionResult('✅ Contact submitted successfully! They will receive a calendar link shortly.');
       } else {

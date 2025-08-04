@@ -14,7 +14,10 @@ const upload = multer({
   },
 });
 
-const uploadMiddleware = promisify(upload.single('audio'));
+const uploadMiddleware = promisify(upload.fields([
+  { name: 'audio', maxCount: 1 },
+  { name: 'apiKey', maxCount: 1 }
+]));
 
 export const config = {
   api: {
@@ -130,6 +133,15 @@ function parseContactInfo(transcription: string): ContactData {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -137,13 +149,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await uploadMiddleware(req as any, res as any);
     
-    const file = (req as any).file;
-    if (!file) {
+    const files = (req as any).files;
+    const audioFile = files?.audio?.[0];
+    if (!audioFile) {
       return res.status(400).json({ error: 'No audio file provided' });
     }
 
-    // Get API key from request body or environment
-    const apiKey = (req as any).body?.apiKey || process.env.OPENAI_API_KEY;
+    // Get API key from form fields or environment
+    const apiKeyField = files?.apiKey?.[0];
+    const apiKey = apiKeyField ? apiKeyField.buffer.toString('utf8') : process.env.OPENAI_API_KEY;
     
     if (!apiKey) {
       return res.status(400).json({ 
@@ -158,13 +172,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Convert buffer to file-like object for OpenAI
-    const audioFile = new File([file.buffer], file.originalname || 'audio.webm', {
-      type: file.mimetype || 'audio/webm',
+    const audioFileForAPI = new File([audioFile.buffer], audioFile.originalname || 'audio.webm', {
+      type: audioFile.mimetype || 'audio/webm',
     });
 
     // Transcribe with Whisper
     const transcription = await openaiInstance.audio.transcriptions.create({
-      file: audioFile,
+      file: audioFileForAPI,
       model: 'whisper-1',
       language: 'en',
     });
