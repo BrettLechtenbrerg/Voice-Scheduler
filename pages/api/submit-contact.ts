@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Submit to Go High Level inbound webhook
-    const ghlWebhookUrl = process.env.GHL_WEBHOOK_URL || 'https://services.leadconnectorhq.com/hooks/boPxhNvcNB6T3F2CLP0M/webhook-trigger/2a1d5581-45b9-4b3d-8e70-5ad305d52b02';
+    const ghlWebhookUrl = process.env.GHL_WEBHOOK_URL || 'https://services.leadconnectorhq.com/hooks/boPxhNvcNB6T3F2CLP0M/webhook-trigger/bedba13f-62eb-4a9b-a8f1-6e80ab456d55';
     
     console.log('Submitting to GHL webhook:', ghlWebhookUrl);
     
