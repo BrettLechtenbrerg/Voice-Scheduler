@@ -1,10 +1,1 @@
-{
-  "functions": {
-    "pages/api/transcribe.ts": {
-      "maxDuration": 30
-    },
-    "pages/api/submit-contact.ts": {
-      "maxDuration": 10
-    }
-  }
-}
+{}
