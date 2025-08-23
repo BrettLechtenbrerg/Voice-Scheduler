@@ -98,7 +98,8 @@ function parseContactInfo(transcription: string): ContactData {
   
   // Pattern 2: "with [Name]" pattern (common in introductions)
   if (!nameFound) {
-    const withNameRegex = /(?:with|meeting|speaking with|talking to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*?)(?:,|\s+(?:from|at|and|phone|email)|$)/i;
+    // Look for "with" followed by a proper name (capital letters)
+    const withNameRegex = /(?:with|meeting|speaking with|talking to)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i;
     const withNameMatch = cleanTranscription.match(withNameRegex);
     if (withNameMatch) {
       result.name = sanitizeInput(withNameMatch[1]);

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Scheduler</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 2rem;
+            background-color: #f5f5f5;
+        }
+        .container { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 2rem; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .testing-mode { 
+            background: #fff3cd; 
+            padding: 1.5rem; 
+            border-radius: 8px; 
+            margin-bottom: 2rem; 
+            border: 1px solid #ffeaa7; 
+        }
+        .record-btn { 
+            background: #4CAF50; 
+            color: white; 
+            border: none; 
+            border-radius: 50px; 
+            padding: 1rem 2rem; 
+            font-size: 1.1rem; 
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(76,175,80,0.3);
+        }
+        .stop-btn { 
+            background: #f44336; 
+            color: white; 
+            border: none; 
+            border-radius: 50px; 
+            padding: 1rem 2rem; 
+            font-size: 1.1rem; 
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(244,67,54,0.3);
+        }
+        .error { 
+            background: #ffebee; 
+            color: #c62828; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin: 1rem 0; 
+            text-align: center;
+        }
+        .result { 
+            background: #e8f5e8; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin: 1rem 0;
+            border: 1px solid #c3e6c3;
+        }
+        .transcription { 
+            background: #f8f9fa; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin: 1rem 0;
+            border: 1px solid #e9ecef;
+        }
+        input[type="password"] {
+            width: 100%; 
+            padding: 0.75rem; 
+            margin: 0.5rem 0; 
+            border: 1px solid #ddd; 
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .tips {
+            margin-top: 3rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 2rem; color: #333;">🎤 Voice Scheduler</h1>
+        <p style="text-align: center; margin-bottom: 2rem; color: #666;">
+            Speak your contact information to automatically create leads and send calendar links
+        </p>
+        
+        <div class="testing-mode">
+            <h4 style="margin: 0 0 1rem 0; color: #856404;">🧪 Testing Mode</h4>
+            <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #856404;">
+                OpenAI API Key (temporary for testing):
+            </label>
+            <input type="password" id="apiKey" placeholder="sk-proj-..." style="margin-bottom: 0.5rem;">
+            <p style="font-size: 0.8rem; color: #6c757d; margin: 0; font-style: italic;">
+                ⚠️ This is for testing only. In production, API keys should be stored securely on the server.
+            </p>
+            <p id="apiStatus" style="font-size: 0.9rem; color: #856404; margin: 0.5rem 0 0 0;">
+                ❌ No API key - transcription will fail
+            </p>
+        </div>
+        
+        <div style="text-align: center; margin: 2rem 0;">
+            <button id="recordBtn" class="record-btn">🎙️ Start Recording</button>
+            <button id="stopBtn" class="stop-btn" style="display: none;">⏹️ Stop Recording</button>
+            <div id="processing" style="display: none; color: #2196F3; font-size: 1.1rem; margin-top: 1rem;">🔄 Processing audio...</div>
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="transcriptionResult" class="transcription" style="display: none;"></div>
+        <div id="contactData" class="result" style="display: none;"></div>
+        
+        <div class="tips">
+            <h4>💡 Tips for best results:</h4>
+            <ul>
+                <li>Speak clearly and at a normal pace</li>
+                <li>Include "My name is..." or "This is..."</li>
+                <li>Say phone numbers digit by digit</li>
+                <li>Spell out email addresses if needed</li>
+                <li>Mention company name if applicable</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let apiKey = '';
+        
+        document.getElementById('apiKey').addEventListener('input', (e) => {
+            apiKey = e.target.value;
+            document.getElementById('apiStatus').textContent = 
+                apiKey ? '✅ API key entered - voice transcription enabled' : '❌ No API key - transcription will fail';
+        });
+        
+        document.getElementById('recordBtn').addEventListener('click', startRecording);
+        document.getElementById('stopBtn').addEventListener('click', stopRecording);
+        
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await processAudio(audioBlob);
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.start();
+                document.getElementById('recordBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'inline-block';
+                hideElement('error');
+            } catch (err) {
+                showError('Failed to access microphone. Please allow microphone access.');
+            }
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+                document.getElementById('recordBtn').style.display = 'inline-block';
+                document.getElementById('stopBtn').style.display = 'none';
+                document.getElementById('processing').style.display = 'block';
+            }
+        }
+        
+        async function processAudio(audioBlob) {
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+                if (apiKey) {
+                    formData.append('apiKey', apiKey);
+                }
+                
+                // Try localhost:3000 first, then fallback to demo
+                let response;
+                try {
+                    response = await fetch('http://localhost:3000/api/transcribe', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    
+                    const result = await response.json();
+                    showTranscription(result.transcription);
+                    showContactData(result.contactData);
+                    
+                } catch (e) {
+                    // Fallback demo
+                    showError('Server not reachable - showing demo functionality');
+                    showTranscription('Demo: My name is John Smith, phone number 555-123-4567, email john@company.com, I work at Acme Corporation');
+                    showContactData({
+                        name: 'John Smith',
+                        phone: '+15551234567',
+                        email: 'john@company.com',
+                        company: 'Acme Corporation'
+                    });
+                }
+                
+            } catch (err) {
+                showError('Failed to process audio: ' + err.message);
+            } finally {
+                document.getElementById('processing').style.display = 'none';
+            }
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        function hideElement(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        
+        function showTranscription(text) {
+            const div = document.getElementById('transcriptionResult');
+            div.innerHTML = '<h3>Transcription:</h3><p>' + text + '</p>';
+            div.style.display = 'block';
+        }
+        
+        function showContactData(data) {
+            const div = document.getElementById('contactData');
+            div.innerHTML = 
+                '<h3>Extracted Contact Info:</h3>' +
+                '<p><strong>Name:</strong> ' + (data.name || 'Not detected') + '</p>' +
+                '<p><strong>Phone:</strong> ' + (data.phone || 'Not detected') + '</p>' +
+                '<p><strong>Email:</strong> ' + (data.email || 'Not detected') + '</p>' +
+                (data.company ? '<p><strong>Company:</strong> ' + data.company + '</p>' : '');
+            div.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

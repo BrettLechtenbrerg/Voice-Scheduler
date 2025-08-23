@@ -132,10 +132,11 @@ export default function VoiceRecorder() {
         company: result.contactData.company || '',
       });
       
-      // Show editing form instead of auto-submitting
-      if (result.contactData.name || result.contactData.phone) {
-        setIsEditing(true);
-      }
+      // Always show editing form when we have contact data
+      // Never auto-submit
+      console.log('Contact data received:', result.contactData);
+      console.log('Setting isEditing to true');
+      setIsEditing(true);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to process audio. Please try again.';
       setError(errorMessage);
@@ -227,7 +228,7 @@ export default function VoiceRecorder() {
             gutterBottom
             sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}
           >
-            Voice Contact Capture
+            Voice Contact Capture (v2 - Manual Approval)
           </Typography>
           
           <Typography 
