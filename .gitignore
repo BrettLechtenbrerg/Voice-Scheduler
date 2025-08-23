@@ -53,3 +53,13 @@ coverage/
 # Optional eslint cache
 .eslintcache
 /generated/prisma
+
+# Database files
+*.db
+*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# Temporary files
+*.html
+!public/*.html
