@@ -30,36 +30,11 @@ export const authOptions: NextAuthOptions = {
     async session({ session, user }) {
       if (session?.user && user) {
         session.user.id = user.id;
-        
-        // Get user from database with role
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (dbUser) {
-          session.user.role = dbUser.role;
-          
-          // Ensure user has a workspace and get the default one
-          const workspace = await ensureUserHasWorkspace(session);
-          if (workspace) {
-            session.user.currentWorkspaceId = workspace.id;
-          }
-        }
+        session.user.role = 'USER';
       }
       return session;
     },
     async signIn({ user, account, profile }) {
-      // Ensure user exists in database
-      if (account?.provider === 'google' && user.email) {
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email }
-        });
-
-        if (!existingUser) {
-          // User will be created by PrismaAdapter
-          return true;
-        }
-      }
       return true;
     },
   },
