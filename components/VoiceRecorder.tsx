@@ -12,7 +12,6 @@ import {
   Chip,
   Stack,
   TextField,
-  Grid,
 } from '@mui/material';
 import {
   Mic,
@@ -392,8 +391,8 @@ export default function VoiceRecorder() {
                   <EditIcon fontSize="small" color="primary" />
                   Review and Edit Contact Information
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                     <TextField
                       fullWidth
                       label="First Name"
@@ -402,8 +401,6 @@ export default function VoiceRecorder() {
                       variant="outlined"
                       required
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
                       label="Last Name"
@@ -411,8 +408,8 @@ export default function VoiceRecorder() {
                       onChange={(e) => setEditableData({ ...editableData, lastName: e.target.value })}
                       variant="outlined"
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                     <TextField
                       fullWidth
                       label="Phone Number"
@@ -421,8 +418,6 @@ export default function VoiceRecorder() {
                       variant="outlined"
                       required
                     />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
                       label="Email"
@@ -431,18 +426,15 @@ export default function VoiceRecorder() {
                       variant="outlined"
                       type="email"
                     />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Company Name"
-                      value={editableData.company}
-                      onChange={(e) => setEditableData({ ...editableData, company: e.target.value })}
-                      variant="outlined"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
+                  </Box>
+                  <TextField
+                    fullWidth
+                    label="Company Name"
+                    value={editableData.company}
+                    onChange={(e) => setEditableData({ ...editableData, company: e.target.value })}
+                    variant="outlined"
+                  />
+                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
                       <Button
                         variant="outlined"
                         onClick={() => {
@@ -462,8 +454,7 @@ export default function VoiceRecorder() {
                         Submit Contact
                       </Button>
                     </Box>
-                  </Grid>
-                </Grid>
+                </Box>
               </CardContent>
             </Card>
           </motion.div>
