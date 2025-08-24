@@ -63,3 +63,5 @@ prisma/dev.db-journal
 # Temporary files
 *.html
 !public/*.html
+.env.vercel
+.env.vercel
