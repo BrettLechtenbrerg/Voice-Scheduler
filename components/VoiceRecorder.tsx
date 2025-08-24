@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -67,6 +67,11 @@ export default function VoiceRecorder() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debug editableData changes
+  useEffect(() => {
+    console.log('🔍 editableData state changed:', editableData);
+  }, [editableData]);
 
   const startRecording = async () => {
     try {
@@ -710,7 +715,10 @@ export default function VoiceRecorder() {
                       fullWidth
                       label="Email"
                       value={editableData.email}
-                      onChange={(e) => setEditableData({ ...editableData, email: e.target.value })}
+                      onChange={(e) => {
+                        console.log('🔍 Email field changed to:', e.target.value);
+                        setEditableData({ ...editableData, email: e.target.value });
+                      }}
                       variant="outlined"
                       type="email"
                       sx={{
