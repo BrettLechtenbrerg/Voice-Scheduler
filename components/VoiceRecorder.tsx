@@ -269,8 +269,14 @@ export default function VoiceRecorder() {
       return;
     }
     
+    // NUCLEAR OPTION: Force email from original contactData if editableData email is empty
+    const forceEmail = contactData?.email || editableData.email || '';
+    console.log('🚀 NUCLEAR: Original contactData email:', contactData?.email);
+    console.log('🚀 NUCLEAR: EditableData email:', editableData.email);
+    console.log('🚀 NUCLEAR: Using forced email:', forceEmail);
+    
     // Validate email format if provided
-    if (editableData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editableData.email)) {
+    if (forceEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forceEmail)) {
       setError('Please enter a valid email address');
       return;
     }
@@ -278,12 +284,12 @@ export default function VoiceRecorder() {
     // Clear any previous errors
     setError('');
     
-    // Create contact data from editable fields
+    // Create contact data with FORCED EMAIL
     console.log('🔍 editableData state before submit:', editableData);
     const dataToSubmit: ContactData = {
       name: fullName,
       phone: editableData.phone,
-      email: editableData.email,
+      email: forceEmail, // NUCLEAR: Force the email
       company: editableData.company,
     };
     
