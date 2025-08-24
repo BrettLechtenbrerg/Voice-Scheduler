@@ -127,6 +127,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('=== GHL INTEGRATION DEBUG ===');
     console.log('GHL_WEBHOOK_URL:', ghlWebhookUrl ? 'CONFIGURED' : 'MISSING');
     console.log('Contact Data:', contactData);
+    console.log('Email field specifically:', JSON.stringify(contactData.email));
+    console.log('Email field type:', typeof contactData.email);
+    console.log('Email field length:', contactData.email ? contactData.email.length : 'null/undefined');
     
     if (!ghlWebhookUrl) {
       console.error('ERROR: GHL_WEBHOOK_URL not configured');
@@ -140,11 +143,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const firstName = contactData.name.split(' ')[0] || contactData.name;
     const lastName = contactData.name.split(' ').slice(1).join(' ') || '';
     
+    const cleanEmail = contactData.email && contactData.email.trim() ? contactData.email.trim() : '';
+    
     const webhookData = {
       // Use only the flat structure to avoid duplication
       firstName: firstName,
       lastName: lastName,
-      email: contactData.email || '',
+      email: cleanEmail,
+      emailAddress: cleanEmail, // Alternative field name
+      contactEmail: cleanEmail, // Another alternative
       phone: contactData.phone,
       companyName: contactData.company || '',
       
