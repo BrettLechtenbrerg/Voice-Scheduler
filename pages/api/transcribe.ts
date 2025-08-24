@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from './auth/[...nextauth]'
 import { prisma } from '../../lib/prisma'
 import { ensureUserHasWorkspace } from '../../lib/workspace'
-import OpenAI from 'openai';
+// Removed OpenAI SDK - using direct REST API
 import formidable from 'formidable';
 import path from 'path';
 import fs from 'fs';
@@ -344,50 +344,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Create OpenAI instance with provided or environment API key
-    const openaiInstance = new OpenAI({
-      apiKey: apiKey,
-    });
-
-    // Use the file path for OpenAI
-    console.log('Creating OpenAI transcription request...');
+    // DRAMATIC APPROACH: Use OpenAI REST API directly with form-data
+    console.log('Using direct REST API approach...');
     console.log('File path:', audioFile.filepath);
-    console.log('File size:', require('fs').statSync(audioFile.filepath).size, 'bytes');
     
-    // Read file as buffer for OpenAI
+    // Read file as buffer
     const fileBuffer = fs.readFileSync(audioFile.filepath);
-    
     console.log('File buffer size:', fileBuffer.length);
-    console.log('File mimetype:', audioFile.mimetype);
-    console.log('Original filename:', audioFile.originalFilename);
     
-    // Create file object for OpenAI using the new File() constructor
-    const fileName = audioFile.originalFilename || 'recording.webm';
-    const mimeType = audioFile.mimetype || 'audio/webm';
+    // Use fetch with form-data directly to OpenAI API
+    const FormData = require('form-data');
+    const openaiForm = new FormData();
     
-    // Create a proper File object that OpenAI expects
-    const audioFileForOpenAI = new File([fileBuffer], fileName, {
-      type: mimeType,
-      lastModified: Date.now()
+    openaiForm.append('file', fileBuffer, {
+      filename: audioFile.originalFilename || 'recording.webm',
+      contentType: audioFile.mimetype || 'audio/webm'
+    });
+    openaiForm.append('model', 'whisper-1');
+    openaiForm.append('language', 'en');
+    
+    console.log('Sending direct request to OpenAI...');
+    
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        ...openaiForm.getHeaders()
+      },
+      body: openaiForm
     });
     
-    console.log('Created file object for OpenAI:', {
-      name: audioFileForOpenAI.name,
-      type: audioFileForOpenAI.type,
-      size: audioFileForOpenAI.size
-    });
+    console.log('OpenAI response status:', response.status);
     
-    // Create the transcription
-    const transcription = await openaiInstance.audio.transcriptions.create({
-      file: audioFileForOpenAI,
-      model: 'whisper-1',
-      language: 'en',
-    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API Error:', errorText);
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+    }
     
+    const transcription = await response.json();
     console.log('Transcription result:', transcription);
     
     // Get the text from the transcription result
-    const transcriptionText = (transcription as any).text || transcription;
+    const transcriptionText = transcription.text;
     console.log('Transcription text:', transcriptionText);
     const contactData = parseContactInfo(transcriptionText);
 
