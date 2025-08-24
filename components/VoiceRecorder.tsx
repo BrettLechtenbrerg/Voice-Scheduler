@@ -120,6 +120,9 @@ export default function VoiceRecorder() {
       setTranscription(result.transcription);
       setContactData(result.contactData);
       
+      // Show transcript for debugging
+      console.log('📝 Full Transcript:', result.transcription);
+      
       // Parse the name into first and last name
       const nameParts = result.contactData.name ? result.contactData.name.trim().split(' ') : ['', ''];
       const firstName = nameParts[0] || '';
