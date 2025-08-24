@@ -223,99 +223,92 @@ function parseContactInfo(transcription: string): ContactData {
     }
   }
 
-  // Extract company mentions - enhanced patterns for voice recognition
+  // Extract company mentions - ULTRA PRECISE patterns to avoid over-capture
   let companyFound = false;
   
-  // Pattern 1: Explicit company mention formats
-  const companyNameRegex = /(?:company name|company|organization|business|employer)\s+(?:is\s+)?([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:please|phone|email|contact|$))/i;
+  // Helper function to validate and clean company names
+  function validateCompanyName(companyName: string): string | null {
+    if (!companyName || typeof companyName !== 'string') return null;
+    
+    let cleaned = companyName.trim();
+    
+    // Remove common trailing words that indicate end of company name
+    const trailingWords = /\s+(and|please|phone|email|contact|my|her|his|their|the|a|an|is|was|are|were|will|would|should|could|can|may|might|has|have|had|do|does|did|get|got|go|goes|went|come|comes|came|take|takes|took|make|makes|made|see|sees|saw|know|knows|knew|think|thinks|thought|say|says|said|tell|tells|told|give|gives|gave|put|puts|put|use|uses|used|work|works|worked|call|calls|called|help|helps|helped|try|tries|tried).*$/i;
+    cleaned = cleaned.replace(trailingWords, '');
+    
+    // Must be 3-25 characters (very restrictive)
+    if (cleaned.length < 3 || cleaned.length > 25) return null;
+    
+    // Must not be common words
+    const commonWords = ['the', 'and', 'for', 'with', 'this', 'that', 'them', 'they', 'there', 'their', 'then', 'than', 'when', 'where', 'what', 'which', 'who', 'why', 'how', 'can', 'will', 'would', 'should', 'could', 'may', 'might', 'have', 'has', 'had', 'do', 'does', 'did', 'get', 'got', 'go', 'come', 'take', 'make', 'see', 'know', 'think', 'say', 'tell', 'give', 'put', 'use', 'work', 'call', 'help', 'try'];
+    const firstWord = cleaned.split(' ')[0].toLowerCase();
+    if (commonWords.includes(firstWord)) return null;
+    
+    // Must have reasonable word count (1-3 words max)
+    const words = cleaned.split(' ').filter(w => w.length > 0);
+    if (words.length > 3) return null;
+    
+    return cleaned;
+  }
+  
+  // Pattern 1: Explicit company mention - VERY restrictive
+  const companyNameRegex = /(?:company name|company|organization|business|employer)\s+(?:is\s+)?([A-Z][a-zA-Z\s&.-]{2,20})(?:\b|$|[,.])/i;
   const companyNameMatch = cleanTranscription.match(companyNameRegex);
   if (companyNameMatch) {
-    result.company = sanitizeInput(companyNameMatch[1]).trim();
-    companyFound = true;
+    const validated = validateCompanyName(companyNameMatch[1]);
+    if (validated) {
+      result.company = validated;
+      companyFound = true;
+    }
   }
   
-  // Pattern 2: "I work at/for [Company]" patterns - Enhanced
+  // Pattern 2: "I work at/for [Company]" - VERY restrictive
   if (!companyFound) {
-    const workAtRegex = /(?:i work|work|working|employed|i'm at|im at|i am at)\s+(?:at|for|with)\s+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:and|please|phone|email|contact|my|$))/i;
+    const workAtRegex = /(?:i work|work|working|employed)\s+(?:at|for|with)\s+([A-Z][a-zA-Z\s&.-]{2,20})(?:\b|$|[,.])/i;
     const workAtMatch = cleanTranscription.match(workAtRegex);
     if (workAtMatch) {
-      result.company = sanitizeInput(workAtMatch[1]).trim();
-      companyFound = true;
+      const validated = validateCompanyName(workAtMatch[1]);
+      if (validated) {
+        result.company = validated;
+        companyFound = true;
+      }
     }
   }
   
-  // Pattern 2b: "I'm with [Company]" patterns  
+  // Pattern 3: "I'm with/from [Company]" - VERY restrictive  
   if (!companyFound) {
-    const withRegex = /(?:i'm with|im with|i am with|i'm from|im from|i am from)\s+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:and|please|phone|email|contact|my|$))/i;
+    const withRegex = /(?:i'm with|im with|i am with|i'm from|im from|i am from)\s+([A-Z][a-zA-Z\s&.-]{2,20})(?:\b|$|[,.])/i;
     const withMatch = cleanTranscription.match(withRegex);
     if (withMatch) {
-      result.company = sanitizeInput(withMatch[1]).trim();
-      companyFound = true;
+      const validated = validateCompanyName(withMatch[1]);
+      if (validated) {
+        result.company = validated;
+        companyFound = true;
+      }
     }
   }
   
-  // Pattern 3: "From [Company]" or "Representing [Company]"
+  // Pattern 4: Company with standard suffixes - Most reliable
   if (!companyFound) {
-    const fromCompanyRegex = /(?:from|representing|on behalf of)\s+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:and|please|phone|email|contact|$))/i;
-    const fromCompanyMatch = cleanTranscription.match(fromCompanyRegex);
-    if (fromCompanyMatch) {
-      result.company = sanitizeInput(fromCompanyMatch[1]).trim();
-      companyFound = true;
+    const suffixRegex = /\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2})\s+(Inc|LLC|Corp|Corporation|Company|Co\.|Ltd|Limited|Solutions|Services|Group|Associates|Partners|Consulting)\b/;
+    const suffixMatch = cleanTranscription.match(suffixRegex);
+    if (suffixMatch) {
+      const companyWithSuffix = `${suffixMatch[1]} ${suffixMatch[2]}`;
+      if (companyWithSuffix.length <= 25) {
+        result.company = companyWithSuffix.trim();
+        companyFound = true;
+      }
     }
   }
   
-  // Pattern 4: Company with standard suffixes
+  // Pattern 5: Business type descriptors - Very selective
   if (!companyFound) {
-    const suffixCompanyRegex = /(?:^|\s)([A-Z][a-zA-Z\s&.-]+\s+(?:Inc|LLC|Corp|Corporation|Company|Co\.|Ltd|Limited|Solutions|Services|Group|Associates|Partners|Consulting))(?:\s|$|,|\.|!|\?)/;
-    const suffixCompanyMatch = cleanTranscription.match(suffixCompanyRegex);
-    if (suffixCompanyMatch) {
-      result.company = sanitizeInput(suffixCompanyMatch[1]).trim();
-      companyFound = true;
-    }
-  }
-  
-  // Pattern 5: Well-known company patterns (tech companies, etc.)
-  if (!companyFound) {
-    const techCompanyRegex = /(?:^|\s)([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:Technologies|Tech|Systems|Software|Digital|Media|Labs|Enterprises)(?:\s|$|,|\.|!|\?)/;
-    const techCompanyMatch = cleanTranscription.match(techCompanyRegex);
-    if (techCompanyMatch) {
-      result.company = sanitizeInput(`${techCompanyMatch[1]} ${techCompanyMatch[0].split(' ').pop()}`).trim();
-      companyFound = true;
-    }
-  }
-  
-  // Pattern 6: "ABC Industries" or similar patterns
-  if (!companyFound) {
-    const industriesRegex = /(?:^|\s)([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:Industries|International|Global|Worldwide|Holdings|Ventures)(?:\s|$|,|\.|!|\?)/;
-    const industriesMatch = cleanTranscription.match(industriesRegex);
-    if (industriesMatch) {
-      result.company = sanitizeInput(`${industriesMatch[1]} ${industriesMatch[0].split(' ').pop()}`).trim();
-      companyFound = true;
-    }
-  }
-  
-  // Pattern 7: Common business descriptors - "Personal Mastery Martial Arts", "ABC Consulting", etc.
-  if (!companyFound) {
-    const businessTypeRegex = /(?:^|\s)([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:Martial Arts|Consulting|Marketing|Real Estate|Insurance|Finance|Fitness|Training|Academy|Studio|Clinic|Hospital|Law|Legal|Dental|Medical|Construction|Engineering|Design|Development|Sales|Management)(?:\s|$|,|\.|!|\?)/i;
+    const businessTypeRegex = /\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,1})\s+(Martial Arts|Real Estate|Law Firm|Medical|Dental|Consulting|Marketing|Insurance|Finance|Academy|Studio|Clinic)\b/i;
     const businessTypeMatch = cleanTranscription.match(businessTypeRegex);
     if (businessTypeMatch) {
-      result.company = sanitizeInput(businessTypeMatch[0]).trim();
-      companyFound = true;
-    }
-  }
-  
-  // Pattern 8: Flexible company extraction - look for capitalized words after "at", "with", "from"
-  if (!companyFound) {
-    const flexibleCompanyRegex = /(?:at|with|from)\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)/i;
-    const flexibleMatch = cleanTranscription.match(flexibleCompanyRegex);
-    if (flexibleMatch && flexibleMatch[1].length > 2) {
-      // Don't extract if it's a common word or person name
-      const excludeWords = ['My', 'The', 'And', 'Or', 'But', 'In', 'On', 'At', 'To', 'For', 'Of', 'With', 'By'];
-      const words = flexibleMatch[1].split(' ');
-      const isValidCompany = !excludeWords.includes(words[0]) && words.length <= 4;
-      
-      if (isValidCompany) {
-        result.company = sanitizeInput(flexibleMatch[1]).trim();
+      const companyWithType = `${businessTypeMatch[1]} ${businessTypeMatch[2]}`;
+      if (companyWithType.length <= 25) {
+        result.company = companyWithType.trim();
         companyFound = true;
       }
     }
