@@ -111,12 +111,26 @@ function parseContactInfo(transcription: string): ContactData {
   }
   
   if (!emailFound) {
-    // Pattern 3: "at" format with domain (john at gmail.com)
+    // Pattern 3: "at" format with domain (john at gmail.com) - Enhanced for complex domains
     const voiceEmailRegex = /([a-zA-Z0-9._%+-]+)\s+at\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
     const voiceEmailMatch = cleanTranscription.match(voiceEmailRegex);
     if (voiceEmailMatch) {
       result.email = `${voiceEmailMatch[1]}@${voiceEmailMatch[2]}`.toLowerCase();
       emailFound = true;
+    }
+  }
+  
+  if (!emailFound) {
+    // Pattern 3b: Handle domain names that got parsed with dots (brett.brettlechtenberg.com -> brett@brettlechtenberg.com)
+    const dotDomainRegex = /([a-zA-Z0-9_+-]+)\.([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/i;
+    const dotDomainMatch = cleanTranscription.match(dotDomainRegex);
+    if (dotDomainMatch && dotDomainMatch[2].includes('.')) {
+      // Only convert if the second part looks like a valid domain
+      const potentialEmail = `${dotDomainMatch[1]}@${dotDomainMatch[2]}`.toLowerCase();
+      if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(potentialEmail)) {
+        result.email = potentialEmail;
+        emailFound = true;
+      }
     }
   }
   
