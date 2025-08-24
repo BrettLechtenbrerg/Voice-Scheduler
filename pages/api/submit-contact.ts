@@ -196,14 +196,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('Webhook Data to send:', JSON.stringify(webhookData, null, 2));
     console.log('Sending to URL:', ghlWebhookUrl);
     
-    // Try JSON format first, then form-data as backup if email is present
+    // GHL expects URL-encoded form data - try this format first
     let webhookResponse;
     
+    // Convert to URL-encoded string
+    const urlEncodedData = new URLSearchParams();
+    Object.keys(webhookData).forEach(key => {
+      if (webhookData[key] !== undefined && webhookData[key] !== '') {
+        urlEncodedData.append(key, webhookData[key]);
+      }
+    });
+    
+    console.log('URL-encoded data to send:', urlEncodedData.toString());
+    console.log('Email specifically in URL data:', urlEncodedData.get('email'));
+    
     try {
-      // Primary attempt: JSON format
-      webhookResponse = await axios.post(ghlWebhookUrl, webhookData, {
+      // Primary attempt: URL-encoded form data (GHL preferred format)
+      webhookResponse = await axios.post(ghlWebhookUrl, urlEncodedData.toString(), {
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json',
           'User-Agent': 'Voice-Scheduler/1.0'
         },
@@ -213,16 +224,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       });
       
-      console.log('JSON submission successful');
+      console.log('URL-encoded submission successful');
       
-    } catch (jsonError) {
-      console.log('JSON submission failed, trying form-data format...');
+    } catch (urlEncodedError) {
+      console.log('URL-encoded submission failed, trying JSON format...');
       
-      if (formData && cleanEmail) {
-        // Backup attempt: form-data format
-        webhookResponse = await axios.post(ghlWebhookUrl, formData, {
+      try {
+        // Backup attempt: JSON format
+        webhookResponse = await axios.post(ghlWebhookUrl, webhookData, {
           headers: {
-            ...formData.getHeaders(),
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'User-Agent': 'Voice-Scheduler/1.0'
           },
           timeout: 15000,
@@ -231,10 +243,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
         
-        console.log('Form-data submission successful');
-      } else {
-        // Re-throw the original error if no backup possible
-        throw jsonError;
+        console.log('JSON submission successful as backup');
+        
+      } catch (jsonError) {
+        // Re-throw the original URL-encoded error since that's preferred format
+        throw urlEncodedError;
       }
     }
     
