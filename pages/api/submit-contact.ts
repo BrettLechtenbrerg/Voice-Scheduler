@@ -137,31 +137,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     
     // Prepare webhook data with explicit field mapping for GHL
+    const firstName = contactData.name.split(' ')[0] || contactData.name;
+    const lastName = contactData.name.split(' ').slice(1).join(' ') || '';
+    
     const webhookData = {
-      // Primary contact fields with GHL standard naming
-      contact: {
-        firstName: contactData.name.split(' ')[0] || contactData.name,
-        lastName: contactData.name.split(' ').slice(1).join(' ') || '',
-        name: contactData.name,
-        email: contactData.email || '',
-        phone: contactData.phone,
-        companyName: contactData.company || '',
-        source: 'voice_scheduler',
-        customFields: {
-          notes: contactData.notes || '',
-          transcription: contactData.notes || '',
-          created_via: 'Voice Scheduler App'
-        }
-      },
-      
-      // Alternative flat structure (GHL sometimes prefers this)
-      firstName: contactData.name.split(' ')[0] || contactData.name,
-      lastName: contactData.name.split(' ').slice(1).join(' ') || '',
-      name: contactData.name,
+      // Use only the flat structure to avoid duplication
+      firstName: firstName,
+      lastName: lastName,
       email: contactData.email || '',
       phone: contactData.phone,
       companyName: contactData.company || '',
-      company: contactData.company || '',
       
       // Enhanced workflow trigger context for automation
       trigger: 'voice_scheduler_webhook',
