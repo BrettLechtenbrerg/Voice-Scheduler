@@ -137,15 +137,27 @@ export default function VoiceRecorder() {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.details || errorData.error || `Server error: ${response.status}`;
         console.error('API Error:', errorData);
+        
+        // Check for specific error types
+        if (errorMessage.includes('OpenAI API key not configured') || errorMessage.includes('placeholder')) {
+          throw new Error('OpenAI API key is not configured. Please add a valid API key to continue.');
+        } else if (errorMessage.includes('Authentication required')) {
+          throw new Error('Please sign in to use the voice recording feature.');
+        }
+        
         throw new Error(errorMessage);
       }
 
       const result: TranscriptionResponse = await response.json();
-      setTranscription(result.transcription);
-      setContactData(result.contactData);
       
-      // Show transcript for debugging
+      // Debug logging
+      console.log('📝 API Response:', result);
       console.log('📝 Full Transcript:', result.transcription);
+      console.log('📝 Extracted Contact Data:', result.contactData);
+      
+      // Set transcription
+      setTranscription(result.transcription || 'No transcription available');
+      setContactData(result.contactData);
       
       // Parse the name into first and last name
       const nameParts = result.contactData.name ? result.contactData.name.trim().split(' ') : ['', ''];
@@ -161,11 +173,19 @@ export default function VoiceRecorder() {
         company: result.contactData.company || '',
       });
       
-      // Always show editing form when we have contact data
-      // Never auto-submit
-      console.log('Contact data received:', result.contactData);
-      console.log('Setting isEditing to true');
-      setIsEditing(true);
+      // Always show editing form when we have transcription
+      if (result.transcription) {
+        console.log('Showing edit form with data:', {
+          firstName,
+          lastName,
+          phone: result.contactData.phone,
+          email: result.contactData.email,
+          company: result.contactData.company
+        });
+        setIsEditing(true);
+      } else {
+        setError('No transcription was generated. Please try again.');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to process audio. Please try again.';
       setError(errorMessage);
@@ -537,6 +557,15 @@ export default function VoiceRecorder() {
                     {transcription}
                   </Typography>
                 </Box>
+                
+                {/* Debug Info - Show extracted data */}
+                {contactData && (
+                  <Box sx={{ mt: 2, p: 1, backgroundColor: 'info.light', borderRadius: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Extracted: Name: "{contactData.name}" | Phone: "{contactData.phone}" | Email: "{contactData.email}" | Company: "{contactData.company}"
+                    </Typography>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </motion.div>
