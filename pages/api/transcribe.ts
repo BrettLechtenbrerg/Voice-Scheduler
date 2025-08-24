@@ -354,15 +354,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('File path:', audioFile.filepath);
     console.log('File size:', require('fs').statSync(audioFile.filepath).size, 'bytes');
     
-    // Create a proper file stream for OpenAI
-    const fileStream = fs.createReadStream(audioFile.filepath);
+    // Read file as buffer for OpenAI
+    const fileBuffer = fs.readFileSync(audioFile.filepath);
     
-    console.log('File size:', fs.statSync(audioFile.filepath).size);
+    console.log('File buffer size:', fileBuffer.length);
     console.log('File mimetype:', audioFile.mimetype);
+    console.log('Original filename:', audioFile.originalFilename);
     
-    // Create the transcription using file stream
+    // Create file object for OpenAI using the new File() constructor
+    const fileName = audioFile.originalFilename || 'recording.webm';
+    const mimeType = audioFile.mimetype || 'audio/webm';
+    
+    // Create a proper File object that OpenAI expects
+    const audioFileForOpenAI = new File([fileBuffer], fileName, {
+      type: mimeType,
+      lastModified: Date.now()
+    });
+    
+    console.log('Created file object for OpenAI:', {
+      name: audioFileForOpenAI.name,
+      type: audioFileForOpenAI.type,
+      size: audioFileForOpenAI.size
+    });
+    
+    // Create the transcription
     const transcription = await openaiInstance.audio.transcriptions.create({
-      file: fileStream,
+      file: audioFileForOpenAI,
       model: 'whisper-1',
       language: 'en',
     });
