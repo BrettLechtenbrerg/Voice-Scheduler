@@ -350,15 +350,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const { spawn } = require('child_process');
     
-    // Use curl to make the request - this is guaranteed to work
-    const curlProcess = spawn('curl', [
+    // Use curl with proper multipart form-data
+    const curlArgs = [
       '-X', 'POST',
       '-H', `Authorization: Bearer ${apiKey}`,
-      '-F', `file=@${audioFile.filepath}`,
+      '-F', `file=@${audioFile.filepath};type=audio/webm`,
       '-F', 'model=whisper-1',
       '-F', 'language=en',
+      '--silent',
+      '--show-error',
       'https://api.openai.com/v1/audio/transcriptions'
-    ]);
+    ];
+    
+    console.log('Executing curl with file:', audioFile.filepath);
+    console.log('Curl args:', curlArgs);
+    const curlProcess = spawn('curl', curlArgs);
     
     let responseData = '';
     let errorData = '';
