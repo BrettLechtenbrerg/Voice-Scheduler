@@ -62,9 +62,11 @@ export default function VoiceRecorder() {
   const [isEditing, setIsEditing] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<string>('');
   const [error, setError] = useState('');
+  const [recordingTime, setRecordingTime] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const startRecording = async () => {
     try {
@@ -86,6 +88,17 @@ export default function VoiceRecorder() {
       mediaRecorder.start();
       setIsRecording(true);
       setError('');
+      setRecordingTime(0);
+      
+      // Start recording timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+      // Add visual feedback for mobile
+      if ('vibrate' in navigator) {
+        navigator.vibrate(50);
+      }
     } catch (err) {
       setError('Failed to access microphone. Please allow microphone access.');
     }
@@ -96,6 +109,17 @@ export default function VoiceRecorder() {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsProcessing(true);
+      
+      // Clear timer
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      
+      // Add visual feedback for mobile
+      if ('vibrate' in navigator) {
+        navigator.vibrate([50, 30, 50]);
+      }
     }
   };
 
@@ -227,6 +251,7 @@ export default function VoiceRecorder() {
     setIsEditing(false);
     setSubmissionResult('');
     setError('');
+    setRecordingTime(0);
   };
 
   const getAlertSeverity = (message: string) => {
@@ -236,16 +261,42 @@ export default function VoiceRecorder() {
     return 'info';
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+    <Box sx={{ 
+      maxWidth: 800, 
+      mx: 'auto',
+      px: { xs: 1, sm: 2 },
+      pb: { xs: 4, sm: 2 }
+    }}>
       {/* Main Recording Card */}
-      <Card elevation={2} sx={{ mb: 3 }}>
-        <CardContent sx={{ p: 4 }}>
+      <Card 
+        elevation={2} 
+        sx={{ 
+          mb: 3,
+          borderRadius: { xs: 2, sm: 3 },
+          overflow: 'hidden'
+        }}
+      >
+        <CardContent sx={{ 
+          p: { xs: 2, sm: 4 },
+          pt: { xs: 3, sm: 4 }
+        }}>
           <Typography 
             variant="h4" 
             align="center" 
             gutterBottom
-            sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}
+            sx={{ 
+              mb: 2, 
+              fontWeight: 600, 
+              color: 'primary.main',
+              fontSize: { xs: '1.75rem', sm: '2.125rem' }
+            }}
           >
             🎤 Voice Contact Capture
           </Typography>
@@ -254,13 +305,17 @@ export default function VoiceRecorder() {
             variant="body1" 
             align="center" 
             color="text.secondary"
-            sx={{ mb: 4 }}
+            sx={{ 
+              mb: 4,
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              px: { xs: 1, sm: 0 }
+            }}
           >
             Speak your contact information to automatically create leads and send calendar links
           </Typography>
 
           {/* Recording Controls */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
             <AnimatePresence mode="wait">
               {!isRecording && !isProcessing && (
                 <motion.div
@@ -269,23 +324,38 @@ export default function VoiceRecorder() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
                   transition={{ duration: 0.2 }}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
                 >
                   <Button
                     variant="contained"
                     size="large"
-                    startIcon={<Mic />}
                     onClick={startRecording}
                     sx={{
-                      px: 4,
-                      py: 2,
-                      fontSize: '1.1rem',
+                      width: { xs: 200, sm: 'auto' },
+                      height: { xs: 80, sm: 60 },
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 2 },
+                      fontSize: { xs: '1.25rem', sm: '1.1rem' },
+                      fontWeight: 600,
+                      borderRadius: { xs: 40, sm: 2 },
                       background: 'linear-gradient(45deg, #4caf50 30%, #66bb6a 90%)',
+                      boxShadow: '0 4px 20px rgba(76, 175, 80, 0.3)',
+                      transition: 'all 0.3s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0.5,
                       '&:hover': {
                         background: 'linear-gradient(45deg, #388e3c 30%, #4caf50 90%)',
+                        transform: 'scale(1.02)',
+                        boxShadow: '0 6px 24px rgba(76, 175, 80, 0.4)',
+                      },
+                      '&:active': {
+                        transform: 'scale(0.98)',
                       },
                     }}
                   >
-                    Start Recording
+                    <Mic sx={{ fontSize: { xs: 32, sm: 24 } }} />
+                    <span>Start Recording</span>
                   </Button>
                 </motion.div>
               )}
@@ -297,27 +367,60 @@ export default function VoiceRecorder() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
                   transition={{ duration: 0.2 }}
+                  style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
                 >
+                  <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      <Box
+                        sx={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          backgroundColor: 'error.main',
+                          boxShadow: '0 0 0 4px rgba(244, 67, 54, 0.2)',
+                          mb: 1,
+                        }}
+                      />
+                    </motion.div>
+                    <Typography variant="h6" color="error.main" sx={{ fontWeight: 600 }}>
+                      {formatTime(recordingTime)}
+                    </Typography>
+                  </Box>
                   <Button
                     variant="contained"
                     size="large"
-                    startIcon={<Stop />}
                     onClick={stopRecording}
                     color="error"
                     sx={{
-                      px: 4,
-                      py: 2,
-                      fontSize: '1.1rem',
+                      width: { xs: 200, sm: 'auto' },
+                      height: { xs: 80, sm: 60 },
+                      px: { xs: 3, sm: 4 },
+                      py: { xs: 2, sm: 2 },
+                      fontSize: { xs: '1.25rem', sm: '1.1rem' },
+                      fontWeight: 600,
+                      borderRadius: { xs: 40, sm: 2 },
                       background: 'linear-gradient(45deg, #f44336 30%, #e57373 90%)',
+                      boxShadow: '0 4px 20px rgba(244, 67, 54, 0.3)',
+                      transition: 'all 0.3s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0.5,
                       animation: 'pulse 1.5s infinite',
                       '@keyframes pulse': {
-                        '0%': { transform: 'scale(1)' },
-                        '50%': { transform: 'scale(1.05)' },
-                        '100%': { transform: 'scale(1)' },
+                        '0%': { transform: 'scale(1)', boxShadow: '0 4px 20px rgba(244, 67, 54, 0.3)' },
+                        '50%': { transform: 'scale(1.02)', boxShadow: '0 6px 30px rgba(244, 67, 54, 0.5)' },
+                        '100%': { transform: 'scale(1)', boxShadow: '0 4px 20px rgba(244, 67, 54, 0.3)' },
+                      },
+                      '&:active': {
+                        transform: 'scale(0.98)',
                       },
                     }}
                   >
-                    Stop Recording
+                    <Stop sx={{ fontSize: { xs: 32, sm: 24 } }} />
+                    <span>Stop Recording</span>
                   </Button>
                 </motion.div>
               )}
@@ -330,9 +433,31 @@ export default function VoiceRecorder() {
                   exit={{ opacity: 0, scale: 0.8 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <CircularProgress size={24} />
-                    <Typography variant="h6" color="primary">
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    gap: 2,
+                    py: 3
+                  }}>
+                    <CircularProgress 
+                      size={60} 
+                      thickness={4}
+                      sx={{ 
+                        color: 'primary.main',
+                        '& .MuiCircularProgress-circle': {
+                          strokeLinecap: 'round',
+                        }
+                      }} 
+                    />
+                    <Typography 
+                      variant="h6" 
+                      color="primary"
+                      sx={{ 
+                        fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                        fontWeight: 500
+                      }}
+                    >
                       Processing audio...
                     </Typography>
                   </Box>
@@ -373,22 +498,44 @@ export default function VoiceRecorder() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.4 }}
           >
-            <Card elevation={1} sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Card 
+              elevation={1} 
+              sx={{ 
+                mb: 3,
+                borderRadius: { xs: 2, sm: 3 },
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Typography 
+                  variant="h6" 
+                  gutterBottom 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1,
+                    fontSize: { xs: '1.1rem', sm: '1.25rem' }
+                  }}
+                >
                   <Mic fontSize="small" />
                   Transcription
                 </Typography>
                 <Box
                   sx={{
-                    p: 2,
+                    p: { xs: 1.5, sm: 2 },
                     backgroundColor: 'grey.50',
                     borderRadius: 2,
                     border: '1px solid',
                     borderColor: 'grey.200',
+                    maxHeight: { xs: 120, sm: 'none' },
+                    overflowY: { xs: 'auto', sm: 'visible' },
                   }}
                 >
-                  <Typography variant="body1">{transcription}</Typography>
+                  <Typography 
+                    variant="body1"
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                  >
+                    {transcription}
+                  </Typography>
                 </Box>
               </CardContent>
             </Card>
@@ -405,13 +552,29 @@ export default function VoiceRecorder() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.4, delay: 0.1 }}
           >
-            <Card elevation={1} sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+            <Card 
+              elevation={1} 
+              sx={{ 
+                mb: 3,
+                borderRadius: { xs: 2, sm: 3 },
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Typography 
+                  variant="h6" 
+                  gutterBottom 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1, 
+                    mb: 3,
+                    fontSize: { xs: '1.1rem', sm: '1.25rem' }
+                  }}
+                >
                   <EditIcon fontSize="small" color="primary" />
                   Review and Edit Contact Information
                 </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, sm: 2.5 } }}>
                   <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                     <TextField
                       fullWidth
@@ -420,6 +583,12 @@ export default function VoiceRecorder() {
                       onChange={(e) => setEditableData({ ...editableData, firstName: e.target.value })}
                       variant="outlined"
                       required
+                      sx={{
+                        '& .MuiInputBase-input': {
+                          fontSize: { xs: '1rem', sm: '1rem' },
+                          padding: { xs: '14px', sm: '16.5px 14px' }
+                        }
+                      }}
                     />
                     <TextField
                       fullWidth
@@ -427,6 +596,12 @@ export default function VoiceRecorder() {
                       value={editableData.lastName}
                       onChange={(e) => setEditableData({ ...editableData, lastName: e.target.value })}
                       variant="outlined"
+                      sx={{
+                        '& .MuiInputBase-input': {
+                          fontSize: { xs: '1rem', sm: '1rem' },
+                          padding: { xs: '14px', sm: '16.5px 14px' }
+                        }
+                      }}
                     />
                   </Box>
                   <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
@@ -437,6 +612,13 @@ export default function VoiceRecorder() {
                       onChange={(e) => setEditableData({ ...editableData, phone: e.target.value })}
                       variant="outlined"
                       required
+                      type="tel"
+                      sx={{
+                        '& .MuiInputBase-input': {
+                          fontSize: { xs: '1rem', sm: '1rem' },
+                          padding: { xs: '14px', sm: '16.5px 14px' }
+                        }
+                      }}
                     />
                     <TextField
                       fullWidth
@@ -445,6 +627,12 @@ export default function VoiceRecorder() {
                       onChange={(e) => setEditableData({ ...editableData, email: e.target.value })}
                       variant="outlined"
                       type="email"
+                      sx={{
+                        '& .MuiInputBase-input': {
+                          fontSize: { xs: '1rem', sm: '1rem' },
+                          padding: { xs: '14px', sm: '16.5px 14px' }
+                        }
+                      }}
                     />
                   </Box>
                   <TextField
@@ -453,27 +641,52 @@ export default function VoiceRecorder() {
                     value={editableData.company}
                     onChange={(e) => setEditableData({ ...editableData, company: e.target.value })}
                     variant="outlined"
+                    sx={{
+                      '& .MuiInputBase-input': {
+                        fontSize: { xs: '1rem', sm: '1rem' },
+                        padding: { xs: '14px', sm: '16.5px 14px' }
+                      }
+                    }}
                   />
-                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setIsEditing(false);
-                          resetForm();
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<SendIcon />}
-                        onClick={handleEditSubmit}
-                        disabled={!editableData.firstName || !editableData.phone}
-                      >
-                        Submit Contact
-                      </Button>
-                    </Box>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    gap: 2, 
+                    justifyContent: { xs: 'stretch', sm: 'flex-end' }, 
+                    mt: 3,
+                    flexDirection: { xs: 'column', sm: 'row' },
+                  }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setIsEditing(false);
+                        resetForm();
+                      }}
+                      fullWidth={true}
+                      sx={{
+                        py: { xs: 1.5, sm: 1 },
+                        fontSize: { xs: '1rem', sm: '0.875rem' },
+                        minWidth: { xs: 'auto', sm: 100 },
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<SendIcon sx={{ fontSize: { xs: 20, sm: 20 } }} />}
+                      onClick={handleEditSubmit}
+                      disabled={!editableData.firstName || !editableData.phone}
+                      fullWidth={true}
+                      sx={{
+                        py: { xs: 1.5, sm: 1 },
+                        fontSize: { xs: '1rem', sm: '0.875rem' },
+                        fontWeight: 600,
+                        minWidth: { xs: 'auto', sm: 160 },
+                      }}
+                    >
+                      Submit Contact
+                    </Button>
+                  </Box>
                 </Box>
               </CardContent>
             </Card>
@@ -524,10 +737,22 @@ export default function VoiceRecorder() {
         )}
       </AnimatePresence>
 
-      {/* Tips Card */}
-      <Card elevation={0} sx={{ mt: 4, backgroundColor: 'grey.50' }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
+      {/* Tips Card - Collapsible on mobile */}
+      <Card 
+        elevation={0} 
+        sx={{ 
+          mt: 4, 
+          backgroundColor: 'grey.50',
+          borderRadius: { xs: 2, sm: 3 },
+          display: { xs: 'none', sm: 'block' }
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Typography 
+            variant="h6" 
+            gutterBottom
+            sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+          >
             💡 Tips for Best Results
           </Typography>
           <Stack spacing={1}>
@@ -552,6 +777,22 @@ export default function VoiceRecorder() {
           </Stack>
         </CardContent>
       </Card>
+      
+      {/* Mobile Tips - Compact version */}
+      <Box 
+        sx={{ 
+          display: { xs: 'block', sm: 'none' },
+          mt: 3,
+          p: 2,
+          backgroundColor: 'primary.main',
+          borderRadius: 2,
+          color: 'white'
+        }}
+      >
+        <Typography variant="body2" align="center">
+          💡 Speak clearly: "My name is... My phone is... My email is..."
+        </Typography>
+      </Box>
     </Box>
   );
 }
