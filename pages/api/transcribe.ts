@@ -344,50 +344,76 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // ULTRA SIMPLE APPROACH: Use file path directly with spawn curl
-    console.log('Using curl subprocess approach...');
+    // FINAL SOLUTION: Use native Node.js https with proper form boundary
+    console.log('Using native Node.js HTTPS approach...');
     console.log('File path:', audioFile.filepath);
     
-    const { spawn } = require('child_process');
+    const https = require('https');
+    const { createReadStream } = require('fs');
+    const { createHash } = require('crypto');
     
-    // Use curl with proper multipart form-data
-    const curlArgs = [
-      '-X', 'POST',
-      '-H', `Authorization: Bearer ${apiKey}`,
-      '-F', `file=@${audioFile.filepath};type=audio/webm`,
-      '-F', 'model=whisper-1',
-      '-F', 'language=en',
-      '--silent',
-      '--show-error',
-      'https://api.openai.com/v1/audio/transcriptions'
-    ];
+    // Create a proper multipart boundary
+    const boundary = '----formdata-' + createHash('md5').update(Date.now().toString()).digest('hex');
+    const CRLF = '\r\n';
     
-    console.log('Executing curl with file:', audioFile.filepath);
-    console.log('Curl args:', curlArgs);
-    const curlProcess = spawn('curl', curlArgs);
+    // Read the file
+    const fileBuffer = fs.readFileSync(audioFile.filepath);
+    const fileName = audioFile.originalFilename || 'recording.webm';
+    const mimeType = audioFile.mimetype || 'audio/webm';
     
-    let responseData = '';
-    let errorData = '';
+    // Build multipart form data manually
+    let formData = '';
     
-    curlProcess.stdout.on('data', (data: Buffer) => {
-      responseData += data.toString();
-    });
+    // File part
+    formData += `--${boundary}${CRLF}`;
+    formData += `Content-Disposition: form-data; name="file"; filename="${fileName}"${CRLF}`;
+    formData += `Content-Type: ${mimeType}${CRLF}${CRLF}`;
     
-    curlProcess.stderr.on('data', (data: Buffer) => {
-      errorData += data.toString();
-    });
+    const formDataBuffer = Buffer.concat([
+      Buffer.from(formData, 'utf8'),
+      fileBuffer,
+      Buffer.from(`${CRLF}--${boundary}${CRLF}`, 'utf8'),
+      Buffer.from(`Content-Disposition: form-data; name="model"${CRLF}${CRLF}whisper-1${CRLF}`, 'utf8'),
+      Buffer.from(`--${boundary}${CRLF}`, 'utf8'),
+      Buffer.from(`Content-Disposition: form-data; name="language"${CRLF}${CRLF}en${CRLF}`, 'utf8'),
+      Buffer.from(`--${boundary}--${CRLF}`, 'utf8')
+    ]);
+    
+    console.log('Form data size:', formDataBuffer.length);
+    
+    // Make HTTPS request
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/audio/transcriptions',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': formDataBuffer.length
+      }
+    };
     
     const response = await new Promise<string>((resolve, reject) => {
-      curlProcess.on('close', (code: number | null) => {
-        if (code === 0) {
-          resolve(responseData);
-        } else {
-          reject(new Error(`curl failed with code ${code}: ${errorData}`));
-        }
+      const req = https.request(options, (res: any) => {
+        let data = '';
+        res.on('data', (chunk: any) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          resolve(data);
+        });
       });
+      
+      req.on('error', (error: Error) => {
+        reject(error);
+      });
+      
+      req.write(formDataBuffer);
+      req.end();
     });
     
-    console.log('Curl response:', response);
+    console.log('HTTPS response:', response);
     const transcription = JSON.parse(response);
     console.log('Transcription result:', transcription);
     
