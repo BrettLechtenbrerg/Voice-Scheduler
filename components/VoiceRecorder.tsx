@@ -110,8 +110,10 @@ export default function VoiceRecorder() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || `Server error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.details || errorData.error || `Server error: ${response.status}`;
+        console.error('API Error:', errorData);
+        throw new Error(errorMessage);
       }
 
       const result: TranscriptionResponse = await response.json();
@@ -149,11 +151,25 @@ export default function VoiceRecorder() {
     // Combine first and last name
     const fullName = `${editableData.firstName} ${editableData.lastName}`.trim();
     
-    // Validate required fields
-    if (!fullName || !editableData.phone) {
-      setError('Name and phone number are required');
+    // Enhanced validation
+    if (!fullName || fullName.length < 2) {
+      setError('Please enter a valid name');
       return;
     }
+    
+    if (!editableData.phone || editableData.phone.length < 10) {
+      setError('Please enter a valid phone number (at least 10 digits)');
+      return;
+    }
+    
+    // Validate email format if provided
+    if (editableData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editableData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    // Clear any previous errors
+    setError('');
     
     // Create contact data from editable fields
     const dataToSubmit: ContactData = {
@@ -228,7 +244,7 @@ export default function VoiceRecorder() {
             gutterBottom
             sx={{ mb: 3, fontWeight: 600, color: 'primary.main' }}
           >
-            Voice Contact Capture (v2 - Manual Approval)
+            🎤 Voice Contact Capture
           </Typography>
           
           <Typography 
@@ -513,22 +529,22 @@ export default function VoiceRecorder() {
           </Typography>
           <Stack spacing={1}>
             <Typography variant="body2" color="text.secondary">
-              • Speak clearly and at a normal pace
+              • <strong>Name:</strong> Say "My name is John Smith" or "This is Sarah Johnson"
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              • Include "My name is..." or "This is..."
+              • <strong>Phone:</strong> Speak digits clearly "5-5-5-1-2-3-4-5-6-7" or spell out words
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              • Say phone numbers digit by digit
+              • <strong>Email:</strong> Say "john at gmail dot com" or spell it out completely
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              • Spell out email addresses if needed
+              • <strong>Company:</strong> Say "I work at ABC Company" or "Company name is XYZ Inc"
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              • Mention company name if applicable
+              • Speak naturally - the system understands multiple phrase patterns
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              • You can review and edit all information before submitting
+              • Review and edit all extracted information before submitting
             </Typography>
           </Stack>
         </CardContent>
