@@ -211,7 +211,16 @@ export default function VoiceRecorder() {
       const lastName = nameParts.slice(1).join(' ') || '';
       
       // Set the editable data
+      console.log('🔍 Setting editable data with email:', result.contactData.email);
       setEditableData({
+        firstName,
+        lastName,
+        phone: result.contactData.phone || '',
+        email: result.contactData.email || '',
+        company: result.contactData.company || '',
+      });
+      
+      console.log('🔍 Editable data set to:', {
         firstName,
         lastName,
         phone: result.contactData.phone || '',
@@ -265,6 +274,7 @@ export default function VoiceRecorder() {
     setError('');
     
     // Create contact data from editable fields
+    console.log('🔍 editableData state before submit:', editableData);
     const dataToSubmit: ContactData = {
       name: fullName,
       phone: editableData.phone,
@@ -272,6 +282,7 @@ export default function VoiceRecorder() {
       company: editableData.company,
     };
     
+    console.log('🔍 dataToSubmit:', dataToSubmit);
     await submitContact(dataToSubmit);
     setIsEditing(false);
   };
