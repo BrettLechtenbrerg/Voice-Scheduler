@@ -150,8 +150,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       firstName: firstName,
       lastName: lastName,
       email: cleanEmail,
+      Email: cleanEmail, // Capitalized version
       emailAddress: cleanEmail, // Alternative field name
       contactEmail: cleanEmail, // Another alternative
+      mail: cleanEmail, // Short version
+      'email-address': cleanEmail, // Hyphenated version
+      contact_email: cleanEmail, // Underscore version
       phone: contactData.phone,
       companyName: contactData.company || '',
       
