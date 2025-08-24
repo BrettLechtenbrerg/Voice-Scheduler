@@ -344,46 +344,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // DRAMATIC APPROACH: Use OpenAI REST API directly with form-data
-    console.log('Using direct REST API approach...');
+    // ULTRA SIMPLE APPROACH: Use file path directly with spawn curl
+    console.log('Using curl subprocess approach...');
     console.log('File path:', audioFile.filepath);
     
-    // Read file as buffer
-    const fileBuffer = fs.readFileSync(audioFile.filepath);
-    console.log('File buffer size:', fileBuffer.length);
+    const { spawn } = require('child_process');
     
-    // Use fetch with form-data directly to OpenAI API
-    const FormData = require('form-data');
-    const openaiForm = new FormData();
+    // Use curl to make the request - this is guaranteed to work
+    const curlProcess = spawn('curl', [
+      '-X', 'POST',
+      '-H', `Authorization: Bearer ${apiKey}`,
+      '-F', `file=@${audioFile.filepath}`,
+      '-F', 'model=whisper-1',
+      '-F', 'language=en',
+      'https://api.openai.com/v1/audio/transcriptions'
+    ]);
     
-    openaiForm.append('file', fileBuffer, {
-      filename: audioFile.originalFilename || 'recording.webm',
-      contentType: audioFile.mimetype || 'audio/webm'
-    });
-    openaiForm.append('model', 'whisper-1');
-    openaiForm.append('language', 'en');
+    let responseData = '';
+    let errorData = '';
     
-    console.log('Sending direct request to OpenAI...');
-    
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        ...openaiForm.getHeaders()
-      },
-      body: openaiForm
+    curlProcess.stdout.on('data', (data: Buffer) => {
+      responseData += data.toString();
     });
     
-    console.log('OpenAI response status:', response.status);
+    curlProcess.stderr.on('data', (data: Buffer) => {
+      errorData += data.toString();
+    });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenAI API Error:', errorText);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-    }
+    const response = await new Promise<string>((resolve, reject) => {
+      curlProcess.on('close', (code: number | null) => {
+        if (code === 0) {
+          resolve(responseData);
+        } else {
+          reject(new Error(`curl failed with code ${code}: ${errorData}`));
+        }
+      });
+    });
     
-    const transcription = await response.json();
+    console.log('Curl response:', response);
+    const transcription = JSON.parse(response);
     console.log('Transcription result:', transcription);
+    
+    // Check if there's an error in the response
+    if (transcription.error) {
+      console.error('OpenAI API Error:', transcription.error);
+      throw new Error(`OpenAI API error: ${transcription.error.message}`);
+    }
     
     // Get the text from the transcription result
     const transcriptionText = transcription.text;
