@@ -234,12 +234,22 @@ function parseContactInfo(transcription: string): ContactData {
     companyFound = true;
   }
   
-  // Pattern 2: "I work at/for [Company]" patterns
+  // Pattern 2: "I work at/for [Company]" patterns - Enhanced
   if (!companyFound) {
-    const workAtRegex = /(?:i work|work|employed)\s+(?:at|for|with)\s+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:and|please|phone|email|contact|$))/i;
+    const workAtRegex = /(?:i work|work|working|employed|i'm at|im at|i am at)\s+(?:at|for|with)\s+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:and|please|phone|email|contact|my|$))/i;
     const workAtMatch = cleanTranscription.match(workAtRegex);
     if (workAtMatch) {
       result.company = sanitizeInput(workAtMatch[1]).trim();
+      companyFound = true;
+    }
+  }
+  
+  // Pattern 2b: "I'm with [Company]" patterns  
+  if (!companyFound) {
+    const withRegex = /(?:i'm with|im with|i am with|i'm from|im from|i am from)\s+([A-Z][a-zA-Z\s&.,-]+?)(?:[,\s]*(?:and|please|phone|email|contact|my|$))/i;
+    const withMatch = cleanTranscription.match(withRegex);
+    if (withMatch) {
+      result.company = sanitizeInput(withMatch[1]).trim();
       companyFound = true;
     }
   }
@@ -280,6 +290,34 @@ function parseContactInfo(transcription: string): ContactData {
     const industriesMatch = cleanTranscription.match(industriesRegex);
     if (industriesMatch) {
       result.company = sanitizeInput(`${industriesMatch[1]} ${industriesMatch[0].split(' ').pop()}`).trim();
+      companyFound = true;
+    }
+  }
+  
+  // Pattern 7: Common business descriptors - "Personal Mastery Martial Arts", "ABC Consulting", etc.
+  if (!companyFound) {
+    const businessTypeRegex = /(?:^|\s)([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:Martial Arts|Consulting|Marketing|Real Estate|Insurance|Finance|Fitness|Training|Academy|Studio|Clinic|Hospital|Law|Legal|Dental|Medical|Construction|Engineering|Design|Development|Sales|Management)(?:\s|$|,|\.|!|\?)/i;
+    const businessTypeMatch = cleanTranscription.match(businessTypeRegex);
+    if (businessTypeMatch) {
+      result.company = sanitizeInput(businessTypeMatch[0]).trim();
+      companyFound = true;
+    }
+  }
+  
+  // Pattern 8: Flexible company extraction - look for capitalized words after "at", "with", "from"
+  if (!companyFound) {
+    const flexibleCompanyRegex = /(?:at|with|from)\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)/i;
+    const flexibleMatch = cleanTranscription.match(flexibleCompanyRegex);
+    if (flexibleMatch && flexibleMatch[1].length > 2) {
+      // Don't extract if it's a common word or person name
+      const excludeWords = ['My', 'The', 'And', 'Or', 'But', 'In', 'On', 'At', 'To', 'For', 'Of', 'With', 'By'];
+      const words = flexibleMatch[1].split(' ');
+      const isValidCompany = !excludeWords.includes(words[0]) && words.length <= 4;
+      
+      if (isValidCompany) {
+        result.company = sanitizeInput(flexibleMatch[1]).trim();
+        companyFound = true;
+      }
     }
   }
 
