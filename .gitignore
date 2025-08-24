@@ -9,12 +9,14 @@ yarn-error.log*
 out/
 build/
 
-# Environment variables
+# Environment variables - NEVER commit these!
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.vercel
 
 # Vercel
 .vercel
@@ -63,5 +65,3 @@ prisma/dev.db-journal
 # Temporary files
 *.html
 !public/*.html
-.env.vercel
-.env.vercel
