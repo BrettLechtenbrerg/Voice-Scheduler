@@ -344,84 +344,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // FINAL SOLUTION: Use native Node.js https with proper form boundary
-    console.log('Using native Node.js HTTPS approach...');
+    // BACK TO BASICS: Use OpenAI SDK with file stream (we know this works)
+    console.log('Back to OpenAI SDK with file stream...');
     console.log('File path:', audioFile.filepath);
     
-    const https = require('https');
-    const { createReadStream } = require('fs');
-    const { createHash } = require('crypto');
+    const OpenAI = require('openai');
     
-    // Create a proper multipart boundary
-    const boundary = '----formdata-' + createHash('md5').update(Date.now().toString()).digest('hex');
-    const CRLF = '\r\n';
-    
-    // Read the file
-    const fileBuffer = fs.readFileSync(audioFile.filepath);
-    const fileName = audioFile.originalFilename || 'recording.webm';
-    const mimeType = audioFile.mimetype || 'audio/webm';
-    
-    // Build multipart form data manually
-    let formData = '';
-    
-    // File part
-    formData += `--${boundary}${CRLF}`;
-    formData += `Content-Disposition: form-data; name="file"; filename="${fileName}"${CRLF}`;
-    formData += `Content-Type: ${mimeType}${CRLF}${CRLF}`;
-    
-    const formDataBuffer = Buffer.concat([
-      Buffer.from(formData, 'utf8'),
-      fileBuffer,
-      Buffer.from(`${CRLF}--${boundary}${CRLF}`, 'utf8'),
-      Buffer.from(`Content-Disposition: form-data; name="model"${CRLF}${CRLF}whisper-1${CRLF}`, 'utf8'),
-      Buffer.from(`--${boundary}${CRLF}`, 'utf8'),
-      Buffer.from(`Content-Disposition: form-data; name="language"${CRLF}${CRLF}en${CRLF}`, 'utf8'),
-      Buffer.from(`--${boundary}--${CRLF}`, 'utf8')
-    ]);
-    
-    console.log('Form data size:', formDataBuffer.length);
-    
-    // Make HTTPS request
-    const options = {
-      hostname: 'api.openai.com',
-      port: 443,
-      path: '/v1/audio/transcriptions',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': formDataBuffer.length
-      }
-    };
-    
-    const response = await new Promise<string>((resolve, reject) => {
-      const req = https.request(options, (res: any) => {
-        let data = '';
-        res.on('data', (chunk: any) => {
-          data += chunk;
-        });
-        res.on('end', () => {
-          resolve(data);
-        });
-      });
-      
-      req.on('error', (error: Error) => {
-        reject(error);
-      });
-      
-      req.write(formDataBuffer);
-      req.end();
+    // Create OpenAI instance
+    const openai = new OpenAI({
+      apiKey: apiKey.trim(), // Trim any whitespace
+    });
+
+    // Create the transcription using file stream
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(audioFile.filepath),
+      model: 'whisper-1',
+      language: 'en',
     });
     
-    console.log('HTTPS response:', response);
-    const transcription = JSON.parse(response);
     console.log('Transcription result:', transcription);
-    
-    // Check if there's an error in the response
-    if (transcription.error) {
-      console.error('OpenAI API Error:', transcription.error);
-      throw new Error(`OpenAI API error: ${transcription.error.message}`);
-    }
     
     // Get the text from the transcription result
     const transcriptionText = transcription.text;
