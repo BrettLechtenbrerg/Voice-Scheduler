@@ -124,12 +124,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Submit to Go High Level inbound webhook
     const ghlWebhookUrl = process.env.GHL_WEBHOOK_URL;
     
+    // Prepare webhook data - clean and focused approach  
+    const firstName = contactData.name.split(' ')[0] || contactData.name;
+    const lastName = contactData.name.split(' ').slice(1).join(' ') || '';
+    const cleanEmail = contactData.email && contactData.email.trim() ? contactData.email.trim() : '';
+    
     console.log('=== GHL INTEGRATION DEBUG ===');
     console.log('GHL_WEBHOOK_URL:', ghlWebhookUrl ? 'CONFIGURED' : 'MISSING');
     console.log('Contact Data:', contactData);
     console.log('Email field specifically:', JSON.stringify(contactData.email));
     console.log('Email field type:', typeof contactData.email);
     console.log('Email field length:', contactData.email ? contactData.email.length : 'null/undefined');
+    console.log('Clean email after processing:', JSON.stringify(cleanEmail));
     
     if (!ghlWebhookUrl) {
       console.error('ERROR: GHL_WEBHOOK_URL not configured');
@@ -139,70 +145,98 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
     
-    // Prepare webhook data with explicit field mapping for GHL
-    const firstName = contactData.name.split(' ')[0] || contactData.name;
-    const lastName = contactData.name.split(' ').slice(1).join(' ') || '';
-    
-    const cleanEmail = contactData.email && contactData.email.trim() ? contactData.email.trim() : '';
-    
-    const webhookData = {
-      // Use only the flat structure to avoid duplication
-      firstName: firstName,
-      lastName: lastName,
-      email: cleanEmail,
-      Email: cleanEmail, // Capitalized version
-      emailAddress: cleanEmail, // Alternative field name
-      contactEmail: cleanEmail, // Another alternative
-      mail: cleanEmail, // Short version
-      'email-address': cleanEmail, // Hyphenated version
-      contact_email: cleanEmail, // Underscore version
+    // Primary webhook payload - GHL-optimized field mapping
+    const webhookData: any = {
+      first_name: firstName,
+      last_name: lastName,
       phone: contactData.phone,
-      companyName: contactData.company || '',
-      
-      // Enhanced workflow trigger context for automation
-      trigger: 'voice_scheduler_webhook',
-      source: 'voice_scheduler', 
-      type: 'contact_creation',
-      eventType: 'new_lead_voice_capture',
-      leadSource: 'Voice Scheduler App',
-      
-      // Calendar/scheduling specific fields
-      needsCalendarLink: true,
-      requestCalendar: true,
-      scheduleRequest: true,
-      
-      // Notes and additional data
-      notes: contactData.notes || '',
-      message: contactData.notes || '',
-      transcription: contactData.notes || '',
-      description: contactData.notes || '',
-      
-      // Timestamps
-      createdAt: new Date().toISOString(),
-      timestamp: Math.floor(Date.now() / 1000),
-      submittedAt: new Date().toISOString(),
-      
-      // Metadata for mapping reference
-      webhookType: 'contact_submission',
-      version: '2.0',
-      workflowId: '2c3de284-6770-4e54-a58d-3b1680f06343'
+      source: 'Voice Scheduler App',
+      timestamp: new Date().toISOString()
     };
+    
+    // Add email with multiple field name attempts (GHL can be picky about field names)
+    if (cleanEmail && cleanEmail.length > 0) {
+      webhookData.email = cleanEmail;
+      webhookData.email_address = cleanEmail;  // Alternative field name
+      webhookData.contact_email = cleanEmail;  // Alternative field name
+    }
+    
+    // Only add optional fields if they exist
+    if (contactData.company && contactData.company.trim()) {
+      webhookData.company = contactData.company.trim();
+      webhookData.company_name = contactData.company.trim();
+    }
+    
+    if (contactData.notes && contactData.notes.trim()) {
+      webhookData.message = contactData.notes.trim();
+      webhookData.notes = contactData.notes.trim();
+    }
+    
+    // If email is present, also try form-data format as backup
+    let formData = null;
+    if (cleanEmail) {
+      const FormData = require('form-data');
+      formData = new FormData();
+      formData.append('first_name', firstName);
+      formData.append('last_name', lastName);
+      formData.append('email', cleanEmail);
+      formData.append('email_address', cleanEmail);
+      formData.append('phone', contactData.phone);
+      if (contactData.company) {
+        formData.append('company', contactData.company);
+        formData.append('company_name', contactData.company);
+      }
+      if (contactData.notes) {
+        formData.append('message', contactData.notes);
+        formData.append('notes', contactData.notes);
+      }
+      formData.append('source', 'Voice Scheduler App');
+    }
 
     console.log('Webhook Data to send:', JSON.stringify(webhookData, null, 2));
     console.log('Sending to URL:', ghlWebhookUrl);
     
-    // Submit to GHL inbound webhook (webhooks typically expect JSON)
-    const webhookResponse = await axios.post(ghlWebhookUrl, webhookData, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Voice-Scheduler/1.0'
-      },
-      timeout: 15000,
-      validateStatus: function (status) {
-        return status >= 200 && status < 400;
+    // Try JSON format first, then form-data as backup if email is present
+    let webhookResponse;
+    
+    try {
+      // Primary attempt: JSON format
+      webhookResponse = await axios.post(ghlWebhookUrl, webhookData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Voice-Scheduler/1.0'
+        },
+        timeout: 15000,
+        validateStatus: function (status) {
+          return status >= 200 && status < 400;
+        }
+      });
+      
+      console.log('JSON submission successful');
+      
+    } catch (jsonError) {
+      console.log('JSON submission failed, trying form-data format...');
+      
+      if (formData && cleanEmail) {
+        // Backup attempt: form-data format
+        webhookResponse = await axios.post(ghlWebhookUrl, formData, {
+          headers: {
+            ...formData.getHeaders(),
+            'User-Agent': 'Voice-Scheduler/1.0'
+          },
+          timeout: 15000,
+          validateStatus: function (status) {
+            return status >= 200 && status < 400;
+          }
+        });
+        
+        console.log('Form-data submission successful');
+      } else {
+        // Re-throw the original error if no backup possible
+        throw jsonError;
       }
-    });
+    }
     
     console.log('GHL Response Status:', webhookResponse.status);
     console.log('GHL Response Data:', webhookResponse.data);
