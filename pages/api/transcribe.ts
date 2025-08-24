@@ -324,6 +324,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mimetype: audioFile.mimetype,
       filepath: audioFile.filepath
     });
+    
+    // Validate file size
+    if (audioFile.size === 0) {
+      return res.status(400).json({ 
+        error: 'Empty audio file',
+        details: 'The audio file is empty. Please record some audio before submitting.'
+      });
+    }
 
     // Get API key from environment only - no client-side API keys
     const apiKey = process.env.OPENAI_API_KEY;

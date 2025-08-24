@@ -70,19 +70,50 @@ export default function VoiceRecorder() {
 
   const startRecording = async () => {
     try {
+      console.log('Starting recording...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Check supported MIME types
+      const mimeTypes = [
+        'audio/webm',
+        'audio/webm;codecs=opus',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+        'audio/wav'
+      ];
+      
+      let selectedMimeType = 'audio/webm';
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          console.log('Using MIME type:', mimeType);
+          break;
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+          console.log('Audio chunk received, size:', event.data.size);
+        }
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        console.log('Recording stopped, processing audio...');
+        console.log('Total chunks:', audioChunksRef.current.length);
+        const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType });
+        console.log('Audio blob created, size:', audioBlob.size, 'type:', audioBlob.type);
         await processAudio(audioBlob);
         stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        setError('Recording error occurred. Please try again.');
       };
 
       mediaRecorder.start();
@@ -100,6 +131,7 @@ export default function VoiceRecorder() {
         navigator.vibrate(50);
       }
     } catch (err) {
+      console.error('Error starting recording:', err);
       setError('Failed to access microphone. Please allow microphone access.');
     }
   };
@@ -125,9 +157,23 @@ export default function VoiceRecorder() {
 
   const processAudio = async (audioBlob: Blob) => {
     try {
+      console.log('Processing audio blob:', {
+        size: audioBlob.size,
+        type: audioBlob.type
+      });
+      
+      if (audioBlob.size === 0) {
+        throw new Error('No audio data recorded. Please try again.');
+      }
+      
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
+      // Use the correct file extension based on MIME type
+      const extension = audioBlob.type.includes('webm') ? 'webm' : 
+                       audioBlob.type.includes('ogg') ? 'ogg' : 
+                       audioBlob.type.includes('mp4') ? 'mp4' : 'webm';
+      formData.append('audio', audioBlob, `recording.${extension}`);
 
+      console.log('Sending audio to API...');
       const response = await fetch('/api/transcribe', {
         method: 'POST',
         body: formData,
