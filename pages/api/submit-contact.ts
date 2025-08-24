@@ -96,13 +96,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Sanitize the data
     const contactData = sanitizeContactData(rawContactData as ContactSubmission);
     
-    // Get user's workspace
-    const workspace = await ensureUserHasWorkspace(session);
-    if (!workspace) {
-      return res.status(500).json({
-        error: 'Workspace not found',
-        details: 'Unable to determine user workspace'
-      });
+    // Get user's workspace (with error handling)
+    let workspace;
+    try {
+      workspace = await ensureUserHasWorkspace(session);
+      if (!workspace) {
+        console.log('No workspace found for user:', session.user.email);
+        // Continue without workspace for now
+      }
+    } catch (wsError) {
+      console.error('Workspace error:', wsError);
+      // Continue without workspace for now
     }
     
     // Submit to Go High Level inbound webhook
@@ -175,43 +179,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
 
-    // Save contact to database with workspace isolation
-    const savedContact = await prisma.contact.create({
-      data: {
-        workspaceId: workspace.id,
-        name: contactData.name,
-        phone: contactData.phone,
-        email: contactData.email || null,
-        company: contactData.company || null,
-        notes: contactData.notes || null,
-        transcription: contactData.notes || null,
-        status: 'PROCESSED'
-      }
-    });
+    // Save contact to database only if workspace exists
+    let savedContact = null;
+    if (workspace) {
+      try {
+        savedContact = await prisma.contact.create({
+          data: {
+            workspaceId: workspace.id,
+            name: contactData.name,
+            phone: contactData.phone,
+            email: contactData.email || null,
+            company: contactData.company || null,
+            notes: contactData.notes || null,
+            transcription: contactData.notes || null,
+            status: 'PROCESSED'
+          }
+        });
 
-    // Update workspace contact count
-    await prisma.workspace.update({
-      where: { id: workspace.id },
-      data: { contactCount: { increment: 1 } }
-    });
+        // Update workspace contact count
+        await prisma.workspace.update({
+          where: { id: workspace.id },
+          data: { contactCount: { increment: 1 } }
+        });
 
-    // Log usage for analytics
-    await prisma.usageLog.create({
-      data: {
-        workspaceId: workspace.id,
-        userId: session.user.id,
-        action: 'submit_contact',
-        metadata: {
-          contactId: savedContact.id,
-          ghlStatus: webhookResponse.status
-        }
+        // Log usage for analytics
+        await prisma.usageLog.create({
+          data: {
+            workspaceId: workspace.id,
+            userId: session.user.id,
+            action: 'submit_contact',
+            metadata: {
+              contactId: savedContact.id,
+              ghlStatus: webhookResponse.status
+            }
+          }
+        });
+      } catch (dbError) {
+        console.error('Database save error:', dbError);
+        // Continue - GHL submission was successful
       }
-    });
+    }
 
     return res.status(200).json({
       success: true,
       message: 'Contact submitted successfully!',
-      contactId: savedContact.id,
+      contactId: savedContact?.id || 'ghl-only',
       status: webhookResponse.status
     });
 
