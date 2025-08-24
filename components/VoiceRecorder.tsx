@@ -721,6 +721,7 @@ export default function VoiceRecorder() {
                       }}
                       variant="outlined"
                       type="email"
+                      autoComplete="off"
                       sx={{
                         '& .MuiInputBase-input': {
                           fontSize: { xs: '1rem', sm: '1rem' },
