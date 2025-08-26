@@ -20,6 +20,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 console.log('🔧 NextAuth Config - RESEND_API_KEY present:', !!process.env.RESEND_API_KEY)
 console.log('🔧 NextAuth Config - EMAIL_FROM:', process.env.EMAIL_FROM)
+console.log('🔧 Resend integration active')
 
 export const authOptions: NextAuthOptions = {
   providers: [
