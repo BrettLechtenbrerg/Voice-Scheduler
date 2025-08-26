@@ -113,12 +113,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       workspace = await ensureUserHasWorkspace(session);
       if (!workspace) {
-        console.log('No workspace found for user:', session.user.email);
-        // Continue without workspace for now
+        console.error('CRITICAL: No workspace found for user:', session.user.email);
+        // This should never happen as ensureUserHasWorkspace creates one if missing
+        return res.status(500).json({
+          error: 'Workspace configuration error',
+          details: 'Failed to create or retrieve user workspace'
+        });
       }
     } catch (wsError) {
-      console.error('Workspace error:', wsError);
-      // Continue without workspace for now
+      console.error('CRITICAL: Workspace error:', wsError);
+      return res.status(500).json({
+        error: 'Workspace initialization failed',
+        details: 'Unable to set up user workspace for contact storage'
+      });
     }
     
     // Submit to Go High Level inbound webhook
