@@ -89,7 +89,7 @@ export default function SignIn() {
                 color="text.secondary"
                 sx={{ mb: 4 }}
               >
-                Sign in to access your voice scheduling dashboard
+                Enter your email to receive a secure magic link
               </Typography>
 
               {message && (

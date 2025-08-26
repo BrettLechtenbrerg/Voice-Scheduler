@@ -18,6 +18,9 @@ declare module 'next-auth' {
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+console.log('🔧 NextAuth Config - RESEND_API_KEY present:', !!process.env.RESEND_API_KEY)
+console.log('🔧 NextAuth Config - EMAIL_FROM:', process.env.EMAIL_FROM)
+
 export const authOptions: NextAuthOptions = {
   providers: [
     EmailProvider({
