@@ -1,6 +1,6 @@
 {
   "name": "voice-scheduler",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Voice-activated contact entry and appointment scheduling system for Go High Level",
   "main": "index.js",
   "scripts": {
