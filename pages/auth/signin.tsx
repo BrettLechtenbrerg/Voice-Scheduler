@@ -1,25 +1,59 @@
 import { GetServerSidePropsContext } from 'next'
 import { getServerSession } from 'next-auth/next'
-import { signIn, getProviders } from 'next-auth/react'
+import { signIn } from 'next-auth/react'
 import { authOptions } from '../api/auth/[...nextauth]'
 import Head from 'next/head'
-import { Box, Container, Typography, Button, Card, CardContent } from '@mui/material'
-import GoogleIcon from '@mui/icons-material/Google'
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  Button, 
+  Card, 
+  CardContent, 
+  TextField,
+  Alert 
+} from '@mui/material'
+import { Email } from '@mui/icons-material'
 import MicIcon from '@mui/icons-material/Mic'
+import { useState } from 'react'
 
-interface Provider {
-  id: string;
-  name: string;
-  type: string;
-  signinUrl: string;
-  callbackUrl: string;
-}
+export default function SignIn() {
+  const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
 
-interface SignInProps {
-  providers: Record<string, Provider>;
-}
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address')
+      return
+    }
 
-export default function SignIn({ providers }: SignInProps) {
+    setLoading(true)
+    setError('')
+    setMessage('')
+    
+    try {
+      const result = await signIn('email', { 
+        email,
+        redirect: false
+      })
+      
+      if (result?.error) {
+        setError('Failed to send magic link. Please try again.')
+      } else {
+        setMessage(`Magic link sent to ${email}! Check your inbox and click the link to sign in.`)
+        setEmail('')
+      }
+    } catch (error) {
+      console.error('Sign in error:', error)
+      setError('Failed to send magic link. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <>
       <Head>
@@ -57,37 +91,54 @@ export default function SignIn({ providers }: SignInProps) {
               >
                 Sign in to access your voice scheduling dashboard
               </Typography>
+
+              {message && (
+                <Alert severity="success" sx={{ mb: 3, textAlign: 'left' }}>
+                  {message}
+                </Alert>
+              )}
               
-              <Box sx={{ mb: 3 }}>
-                {Object.values(providers).map((provider) => (
-                  <Button
-                    key={provider.name}
-                    variant="contained"
-                    size="large"
-                    fullWidth
-                    startIcon={provider.name === 'Google' ? <GoogleIcon /> : undefined}
-                    onClick={() => signIn(provider.id)}
-                    sx={{
-                      mb: 2,
-                      py: 1.5,
-                      fontSize: '1rem',
-                      backgroundColor: provider.name === 'Google' ? '#4285f4' : 'primary.main',
-                      '&:hover': {
-                        backgroundColor: provider.name === 'Google' ? '#3367d6' : 'primary.dark',
-                      },
-                    }}
-                  >
-                    Continue with {provider.name}
-                  </Button>
-                ))}
-              </Box>
+              {error && (
+                <Alert severity="error" sx={{ mb: 3, textAlign: 'left' }}>
+                  {error}
+                </Alert>
+              )}
+
+              <form onSubmit={handleSignIn}>
+                <TextField
+                  fullWidth
+                  type="email"
+                  label="Email Address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  sx={{ mb: 3 }}
+                  placeholder="your.email@example.com"
+                />
+                
+                <Button
+                  fullWidth
+                  type="submit"
+                  variant="contained"
+                  size="large"
+                  startIcon={<Email />}
+                  disabled={loading || !email}
+                  sx={{
+                    py: 2,
+                    fontSize: '1.1rem',
+                    textTransform: 'none',
+                  }}
+                >
+                  {loading ? 'Sending Magic Link...' : 'Send Magic Link'}
+                </Button>
+              </form>
               
               <Typography
                 variant="caption"
                 color="text.secondary"
                 sx={{ display: 'block', mt: 3 }}
               >
-                Secure authentication powered by NextAuth.js
+                We'll send you a secure link to sign in instantly
               </Typography>
             </CardContent>
           </Card>
@@ -104,12 +155,8 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   if (session) {
     return { redirect: { destination: '/' } }
   }
-
-  const providers = await getProviders()
   
   return {
-    props: {
-      providers: providers ?? {},
-    },
+    props: {},
   }
 }

@@ -1,8 +1,6 @@
 import NextAuth from 'next-auth'
-import GoogleProvider from 'next-auth/providers/google'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
+import EmailProvider from 'next-auth/providers/email'
 import { NextAuthOptions } from 'next-auth'
-import { prisma } from '../../../lib/prisma'
 
 declare module 'next-auth' {
   interface Session {
@@ -18,51 +16,39 @@ declare module 'next-auth' {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code"
-        }
-      }
+    EmailProvider({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST || 'smtp.gmail.com',
+        port: process.env.EMAIL_SERVER_PORT ? parseInt(process.env.EMAIL_SERVER_PORT) : 587,
+        auth: {
+          user: process.env.EMAIL_SERVER_USER,
+          pass: process.env.EMAIL_SERVER_PASSWORD,
+        },
+      },
+      from: process.env.EMAIL_FROM || process.env.EMAIL_SERVER_USER,
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
-  debug: true, // Enable debug logs
   callbacks: {
     async session({ session, token }) {
-      console.log('🔧 Session callback:', { session, token });
       if (session?.user && token) {
-        session.user.id = token.sub || '';
+        session.user.id = token.sub || token.email || '';
         session.user.role = 'USER';
       }
-      console.log('✅ Session result:', session);
       return session;
     },
-    async signIn({ user, account, profile }) {
-      console.log('🔧 SignIn callback:', { user, account, profile });
-      const result = !!user.email;
-      console.log('✅ SignIn result:', result);
-      return result;
-    },
-    async jwt({ token, user, account }) {
-      console.log('🔧 JWT callback:', { token, user, account });
+    async jwt({ token, user }) {
       if (user) {
-        token.sub = user.id;
+        token.sub = user.id || user.email || '';
         token.email = user.email;
-        token.name = user.name;
+        token.name = user.name || user.email || '';
       }
-      console.log('✅ JWT result:', token);
       return token;
     },
   },
   session: {
-    strategy: 'database',
+    strategy: 'jwt',
   },
   pages: {
     signIn: '/auth/signin',
