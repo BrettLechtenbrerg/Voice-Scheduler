@@ -3,7 +3,6 @@ import GoogleProvider from 'next-auth/providers/google'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { NextAuthOptions } from 'next-auth'
 import { prisma } from '../../../lib/prisma'
-import { ensureUserHasWorkspace } from '../../../lib/workspace'
 
 declare module 'next-auth' {
   interface Session {
@@ -24,8 +23,16 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
+        }
+      }
     }),
   ],
+  secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async session({ session, token, user }) {
       if (session?.user) {
@@ -42,27 +49,12 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async signIn({ user, account, profile }) {
-      if (!user.email) {
-        return false;
-      }
-      
-      try {
-        // Ensure user has a workspace after sign in
-        const dbUser = await prisma.user.findUnique({
-          where: { email: user.email }
-        });
-        
-        if (dbUser) {
-          await ensureUserHasWorkspace({ user: dbUser } as any);
-        }
-      } catch (error) {
-        console.error('Error ensuring workspace on sign in:', error);
-      }
-      
-      return true;
+    async signIn({ user }) {
+      // Simply allow sign in if user has email
+      // Workspace creation will happen on first contact submission
+      return !!user.email;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       // Persist the user ID to the token
       if (user) {
         token.sub = user.id;
