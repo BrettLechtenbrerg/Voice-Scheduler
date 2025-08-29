@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import Head from 'next/head';
 import {
@@ -77,7 +77,7 @@ export default function Dashboard() {
     return <div>Access denied</div>;
   }
 
-  const fetchContacts = async (page = 1, searchTerm = search) => {
+  const fetchContacts = useCallback(async (page = 1, searchTerm = '') => {
     setLoading(true);
     setError('');
     
@@ -103,7 +103,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.limit]);
 
   const handleDeleteContact = async (contactId: string) => {
     if (!confirm('Are you sure you want to delete this contact?')) {
@@ -120,7 +120,7 @@ export default function Dashboard() {
       }
 
       // Refresh contacts list
-      fetchContacts(pagination.page);
+      fetchContacts(pagination.page, search);
     } catch (err) {
       setError('Failed to delete contact');
       console.error('Delete contact error:', err);
@@ -128,12 +128,11 @@ export default function Dashboard() {
   };
 
   const handleSearch = () => {
-    setPagination(prev => ({ ...prev, page: 1 }));
     fetchContacts(1, search);
   };
 
   const handlePageChange = (event: React.ChangeEvent<unknown>, page: number) => {
-    fetchContacts(page);
+    fetchContacts(page, search);
   };
 
   const formatDate = (dateString: string) => {
@@ -158,7 +157,7 @@ export default function Dashboard() {
   // Load contacts on mount
   useEffect(() => {
     fetchContacts();
-  }, []);
+  }, [fetchContacts]);
 
   return (
     <>
@@ -284,7 +283,7 @@ export default function Dashboard() {
               <Button 
                 variant="outlined" 
                 startIcon={<Refresh />}
-                onClick={() => fetchContacts(pagination.page)}
+                onClick={() => fetchContacts(pagination.page, search)}
                 disabled={loading}
               >
                 Refresh
