@@ -38,7 +38,8 @@
       "Bash(git rm:*)",
       "Bash(npx prisma migrate dev:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(timeout 5 npm run dev)"
+      "Bash(timeout 5 npm run dev)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }
